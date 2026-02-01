@@ -49,7 +49,7 @@ const SlideInPage: React.FC<SlideInPageProps> = ({
   const { from, to } = slideTransforms[slideFrom];
 
   return (
-    <div className="h-full w-full flex flex-col bg-spark-surface relative overflow-hidden">
+    <div className="min-h-dvh h-dvh w-full flex flex-col bg-spark-surface relative">
       <Transition show={isOpen} appear as="div" className="absolute inset-0">
         <Transition.Child
           as="div"
@@ -92,7 +92,10 @@ const SlideInPage: React.FC<SlideInPageProps> = ({
           </header>
 
           {/* Scrollable content */}
-          <div className="flex-1 overflow-y-auto min-h-0">
+          <div 
+            className="flex-1 overflow-y-auto min-h-0"
+            style={{ WebkitOverflowScrolling: 'touch' }}
+          >
             {children}
           </div>
 
