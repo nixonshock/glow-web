@@ -17,10 +17,10 @@ const PageLayout: React.FC<PageLayoutProps> = ({
   showHeader = true,
 }) => {
   return (
-    <div className="h-full w-full flex flex-col bg-spark-surface relative overflow-hidden">
+    <div className="min-h-dvh h-dvh w-full flex flex-col bg-spark-surface relative">
       {showHeader && (
         <header
-          className="relative z-10 border-b border-spark-border bg-spark-surface/80 backdrop-blur-sm"
+          className="relative z-10 flex-shrink-0 border-b border-spark-border bg-spark-surface/80 backdrop-blur-sm"
           style={{ paddingTop: 'env(safe-area-inset-top, 0px)' }}
         >
           <div className="relative px-4 py-4 flex items-center justify-center">
@@ -42,19 +42,23 @@ const PageLayout: React.FC<PageLayoutProps> = ({
         </header>
       )}
 
-      <main className="relative z-10 flex items-center flex-col w-full mx-auto flex-grow overflow-hidden">
-        <div className="flex-1 w-full overflow-y-auto p-4">
-          {children}
-        </div>
-        <div
-          className="flex-shrink-0 w-full border-t border-spark-border bg-spark-surface/80 backdrop-blur-sm"
-          style={{ paddingBottom: 'env(safe-area-inset-bottom, 0px)' }}
-        >
-          <div className="px-4 py-4">
-            {footer}
-          </div>
-        </div>
+      {/* Scrollable content area */}
+      <main 
+        className="relative z-10 flex-1 w-full overflow-y-auto p-4"
+        style={{ WebkitOverflowScrolling: 'touch' }}
+      >
+        {children}
       </main>
+
+      {/* Fixed footer */}
+      <footer
+        className="relative z-10 flex-shrink-0 w-full border-t border-spark-border bg-spark-surface/80 backdrop-blur-sm"
+        style={{ paddingBottom: 'env(safe-area-inset-bottom, 0px)' }}
+      >
+        <div className="px-4 py-4">
+          {footer}
+        </div>
+      </footer>
     </div>
   );
 };
