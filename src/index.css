@@ -814,9 +814,7 @@ p {
   padding: 2px 0;
 }
 
-footer {
-  display: none;
-}
+/* Note: footer elements in PageLayout and SlideInPage are styled inline */
 
 main {
   flex: 1;
