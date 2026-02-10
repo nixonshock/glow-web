@@ -22,8 +22,19 @@ import {
   PrepareLnurlPayRequest,
   LnurlPayRequest,
   LnurlPayResponse,
+  LnurlAuthRequestDetails,
+  LnurlCallbackStatus,
   DepositInfo,
   Fee,
+  GetPaymentRequest,
+  GetPaymentResponse,
+  SyncWalletRequest,
+  SyncWalletResponse,
+  RecommendedFees,
+  SignMessageRequest,
+  SignMessageResponse,
+  CheckMessageRequest,
+  CheckMessageResponse,
   MaxFee,
   ClaimDepositResponse,
   UserSettings,
@@ -95,6 +106,13 @@ export const lnurlPay = async (
 ): Promise<LnurlPayResponse> => {
   if (!sdk) throw new Error('SDK not initialized');
   return await sdk.lnurlPay(params);
+};
+
+export const lnurlAuth = async (
+  requestData: LnurlAuthRequestDetails
+): Promise<LnurlCallbackStatus> => {
+  if (!sdk) throw new Error('SDK not initialized');
+  return await sdk.lnurlAuth(requestData);
 };
 
 export const prepareSendPayment = async (
@@ -343,6 +361,31 @@ export const getTransactions = async (): Promise<Payment[]> => {
   }
 };
 
+export const getPayment = async (request: GetPaymentRequest): Promise<GetPaymentResponse> => {
+  if (!sdk) throw new Error('SDK not initialized');
+  return await sdk.getPayment(request);
+};
+
+export const syncWallet = async (request: SyncWalletRequest = {}): Promise<SyncWalletResponse> => {
+  if (!sdk) throw new Error('SDK not initialized');
+  return await sdk.syncWallet(request);
+};
+
+export const recommendedFees = async (): Promise<RecommendedFees> => {
+  if (!sdk) throw new Error('SDK not initialized');
+  return await sdk.recommendedFees();
+};
+
+export const signMessage = async (request: SignMessageRequest): Promise<SignMessageResponse> => {
+  if (!sdk) throw new Error('SDK not initialized');
+  return await sdk.signMessage(request);
+};
+
+export const checkMessage = async (request: CheckMessageRequest): Promise<CheckMessageResponse> => {
+  if (!sdk) throw new Error('SDK not initialized');
+  return await sdk.checkMessage(request);
+};
+
 export const disconnect = async (): Promise<void> => {
   if (sdk) {
     try {
@@ -432,6 +475,7 @@ export const walletApi: WalletAPI = {
   parseInput,
   prepareLnurlPay,
   lnurlPay,
+  lnurlAuth,
   prepareSendPayment,
   sendPayment,
   receivePayment,
@@ -442,6 +486,13 @@ export const walletApi: WalletAPI = {
   // Data
   getWalletInfo,
   getTransactions,
+  getPayment,
+
+  // Wallet operations
+  syncWallet,
+  recommendedFees,
+  signMessage,
+  checkMessage,
 
   // Events
   addEventListener,
