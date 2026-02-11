@@ -10,8 +10,7 @@ interface CollapsingWalletHeaderProps {
   fiatCurrencies: FiatCurrency[];
   scrollProgress: number;
   onOpenMenu: () => void;
-  hasUnclaimedDeposits: boolean;
-  onOpenGetRefund: () => void;
+  onOpenBuyBitcoin?: () => void;
 }
 
 const CollapsingWalletHeader: React.FC<CollapsingWalletHeaderProps> = ({
@@ -20,8 +19,7 @@ const CollapsingWalletHeader: React.FC<CollapsingWalletHeaderProps> = ({
   fiatRates,
   fiatCurrencies,
   onOpenMenu,
-  hasUnclaimedDeposits,
-  onOpenGetRefund
+  onOpenBuyBitcoin
 }) => {
   const [activeFiatIndex, setActiveFiatIndex] = useState(0);
 
@@ -173,19 +171,18 @@ const CollapsingWalletHeader: React.FC<CollapsingWalletHeaderProps> = ({
           </button>
 
           {/* Action buttons */}
-          <div className="flex items-center gap-3">
-            {/* Rejected deposits warning */}
-            {hasUnclaimedDeposits && (
+          <div className="flex items-center gap-2">
+            {/* Buy Bitcoin */}
+            {onOpenBuyBitcoin && (
               <button
                 type="button"
-                className="flex items-center justify-center w-9 h-9 rounded-xl bg-spark-warning/15 text-spark-warning border border-spark-warning/30 hover:bg-spark-warning/25 transition-colors"
-                title="Rejected deposits need refund"
-                aria-label="Get refund for rejected deposits"
-                onClick={onOpenGetRefund}
+                className="flex items-center gap-1.5 h-9 px-3 rounded-xl text-spark-text-secondary hover:text-spark-text-primary border border-white/10 hover:border-white/20 hover:bg-white/5 transition-colors text-sm font-medium"
+                onClick={onOpenBuyBitcoin}
               >
-                <svg className="w-5 h-5" viewBox="0 0 20 20" fill="currentColor">
-                  <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.72-1.36 3.485 0l6.518 11.6c.75 1.336-.213 3.001-1.742 3.001H3.48c-1.53 0-2.492-1.665-1.742-3.001l6.52-11.6zM11 13a1 1 0 10-2 0 1 1 0 002 0zm-1-2a1 1 0 01-1-1V7a1 1 0 112 0v3a1 1 0 01-1 1z" clipRule="evenodd" />
+                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
                 </svg>
+                <span>Buy</span>
               </button>
             )}
           </div>
