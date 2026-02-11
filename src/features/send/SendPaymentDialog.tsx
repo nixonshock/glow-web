@@ -13,7 +13,7 @@ import AmountStep from './steps/AmountStep';
 import ProcessingStep from './steps/ProcessingStep';
 import ResultStep from './steps/ResultStep';
 import { SendInput } from '@/types/domain';
-import { LnurlPayRequestDetails, PrepareLnurlPayRequest, SendPaymentOptions } from '@breeztech/breez-sdk-spark';
+import { LnurlPayRequestDetails, PrepareLnurlPayRequest, SendPaymentOptions, FeePolicy } from '@breeztech/breez-sdk-spark';
 import { logger, LogCategory } from '@/services/logger';
 
 // Props interfaces
@@ -37,6 +37,8 @@ const SendPaymentDialog: React.FC<SendPaymentDialogProps> = ({ isOpen, onClose, 
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [prepareResponse, setPrepareResponse] = useState<import('@breeztech/breez-sdk-spark').PrepareSendPaymentResponse | null>(null);
   const [paymentResult, setPaymentResult] = useState<'success' | 'failure' | null>(null);
+  const [balanceSats, setBalanceSats] = useState<number | undefined>(undefined);
+  const [feesIncluded, setFeesIncluded] = useState(false);
 
   // Reset state when dialog opens, or process initial data
   useEffect(() => {
@@ -47,6 +49,8 @@ const SendPaymentDialog: React.FC<SendPaymentDialogProps> = ({ isOpen, onClose, 
       setPrepareResponse(null);
       setError(null);
       setIsLoading(false);
+      setBalanceSats(undefined);
+      setFeesIncluded(false);
 
       // If we have initial parsed data from QR scan, process it immediately
       if (initialPaymentInput) {
@@ -90,11 +94,23 @@ const SendPaymentDialog: React.FC<SendPaymentDialogProps> = ({ isOpen, onClose, 
         setAmount(String(sats));
         await prepareSendPayment(currentInput, sats);
       } else if (parseResult.type === 'bitcoinAddress' || parseResult.type === 'sparkAddress') {
+        // Fetch balance for "Send All" option
+        wallet.getWalletInfo().then(info => {
+          if (info) setBalanceSats(info.balanceSats);
+        }).catch(() => { /* balance fetch is best-effort */ });
         setCurrentStep('amount');
       } else if (parseResult.type === 'lnurlPay') {
+        // Fetch balance for "Send All" option
+        wallet.getWalletInfo().then(info => {
+          if (info) setBalanceSats(info.balanceSats);
+        }).catch(() => { /* balance fetch is best-effort */ });
         // Route to LNURL workflow to collect amount and (optional) comment
         setCurrentStep('workflow');
       } else if (parseResult.type === 'lightningAddress') {
+        // Fetch balance for "Send All" option
+        wallet.getWalletInfo().then(info => {
+          if (info) setBalanceSats(info.balanceSats);
+        }).catch(() => { /* balance fetch is best-effort */ });
         setCurrentStep('workflow');
       } else {
         setError('Invalid payment destination');
@@ -111,7 +127,7 @@ const SendPaymentDialog: React.FC<SendPaymentDialogProps> = ({ isOpen, onClose, 
   };
 
   // Common prepare for all input types
-  const prepareSendPayment = async (paymentRequest: string, amountSats: number) => {
+  const prepareSendPayment = async (paymentRequest: string, amountSats: number, feePolicy?: FeePolicy) => {
     if (amountSats <= 0) {
       setError('Please enter a valid amount');
       return;
@@ -119,7 +135,7 @@ const SendPaymentDialog: React.FC<SendPaymentDialogProps> = ({ isOpen, onClose, 
     setIsLoading(true);
     setError(null);
     try {
-      const response = await wallet.prepareSendPayment({ paymentRequest, amount: BigInt(amountSats) });
+      const response = await wallet.prepareSendPayment({ paymentRequest, amount: BigInt(amountSats), feePolicy });
       setPrepareResponse(response);
       // Always go to workflow; BTC fee selection happens inside the Bitcoin workflow
       setCurrentStep('workflow');
@@ -134,13 +150,18 @@ const SendPaymentDialog: React.FC<SendPaymentDialogProps> = ({ isOpen, onClose, 
     }
   };
 
-  const onAmountNext = async (amountNum: number) => {
+  const onAmountNext = async (amountNum: number, includeFees?: boolean) => {
     if (!amountNum || amountNum <= 0) {
       setError('Please enter a valid amount');
       return;
     }
     setAmount(String(amountNum));
-    await prepareSendPayment(paymentInput?.rawInput || '', amountNum);
+    setFeesIncluded(!!includeFees);
+    await prepareSendPayment(
+      paymentInput?.rawInput || '',
+      amountNum,
+      includeFees ? 'feesIncluded' : undefined,
+    );
   };
   // Get payment method display name
   const getPaymentMethodName = (): string => {
@@ -249,6 +270,7 @@ const SendPaymentDialog: React.FC<SendPaymentDialogProps> = ({ isOpen, onClose, 
           <AmountStep
             paymentInput={paymentInput?.rawInput || ''}
             amount={amount}
+            balanceSats={balanceSats}
             isLoading={isLoading}
             error={error}
             onBack={() => setCurrentStep('input')}
@@ -271,6 +293,7 @@ const SendPaymentDialog: React.FC<SendPaymentDialogProps> = ({ isOpen, onClose, 
               <BitcoinWorkflow
                 method={prepareResponse.paymentMethod}
                 amountSats={prepareResponse.amount}
+                feesIncluded={feesIncluded}
                 onBack={() => setCurrentStep('amount')}
                 onSend={handleSend}
               />
@@ -279,6 +302,7 @@ const SendPaymentDialog: React.FC<SendPaymentDialogProps> = ({ isOpen, onClose, 
               <SparkWorkflow
                 method={prepareResponse.paymentMethod}
                 amountSats={prepareResponse.amount}
+                feesIncluded={feesIncluded}
                 onBack={() => setCurrentStep('input')}
                 onSend={handleSend}
               />
@@ -286,6 +310,7 @@ const SendPaymentDialog: React.FC<SendPaymentDialogProps> = ({ isOpen, onClose, 
             {getLnurlPayRequestDetails() && (
               <LnurlWorkflow
                 parsed={getLnurlPayRequestDetails()!}
+                balanceSats={balanceSats}
                 onBack={() => setCurrentStep('input')}
                 onRun={handleRun}
                 onPrepare={async (prepareRequest: PrepareLnurlPayRequest) => {
