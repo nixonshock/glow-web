@@ -22,7 +22,6 @@ const AmountStep: React.FC<AmountStepProps> = ({
 }) => {
   const [localAmount, setLocalAmount] = useState<string>(amount || '');
   const [feesIncluded, setFeesIncluded] = useState(false);
-  const [feesManuallySet, setFeesManuallySet] = useState(false);
 
   useEffect(() => {
     setLocalAmount(amount || '');
@@ -53,7 +52,7 @@ const AmountStep: React.FC<AmountStepProps> = ({
         <input
           type="number"
           value={localAmount}
-          onChange={(e) => { setLocalAmount(e.target.value); if (!feesManuallySet) setFeesIncluded(false); }}
+          onChange={(e) => { setLocalAmount(e.target.value); setFeesIncluded(false); }}
           placeholder="Enter amount in satoshis"
           className="w-full p-4 bg-spark-dark border border-spark-border rounded-xl text-spark-text-primary placeholder-spark-text-muted focus:border-spark-electric focus:ring-2 focus:ring-spark-electric/20 transition-all [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
           disabled={isLoading}
@@ -66,7 +65,7 @@ const AmountStep: React.FC<AmountStepProps> = ({
           {[1000, 10000, 100000].map((quickAmount) => (
             <button
               key={quickAmount}
-              onClick={() => { setLocalAmount(String(quickAmount)); if (!feesManuallySet) setFeesIncluded(false); }}
+              onClick={() => { setLocalAmount(String(quickAmount)); setFeesIncluded(false); }}
               className={`flex-1 py-2 rounded-lg text-sm font-mono font-medium transition-all ${
                 amountNum === quickAmount && !isSendAll
                   ? 'bg-spark-electric text-white'
@@ -88,34 +87,6 @@ const AmountStep: React.FC<AmountStepProps> = ({
               Send All
             </button>
           )}
-        </div>
-        {/* Include fees toggle */}
-        <div
-          className="flex items-center justify-between mt-3 p-3 rounded-xl select-none"
-          data-testid="fees-included-toggle"
-        >
-          <div>
-            <span className="text-sm font-medium text-spark-text-primary">Include fees</span>
-            <p className="text-xs text-spark-text-secondary mt-0.5">
-              Fees are deducted from the amount you enter
-            </p>
-          </div>
-          <button
-            type="button"
-            role="switch"
-            aria-checked={feesIncluded}
-            onClick={() => { setFeesIncluded(!feesIncluded); setFeesManuallySet(!feesIncluded); }}
-            className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full transition-colors ${
-              feesIncluded ? 'bg-spark-warning' : 'bg-spark-border'
-            }`}
-            data-testid="fees-included-switch"
-          >
-            <span
-              className={`pointer-events-none inline-block h-5 w-5 rounded-full bg-white shadow transform transition-transform mt-0.5 ${
-                feesIncluded ? 'translate-x-[22px]' : 'translate-x-0.5'
-              }`}
-            />
-          </button>
         </div>
       </div>
 
