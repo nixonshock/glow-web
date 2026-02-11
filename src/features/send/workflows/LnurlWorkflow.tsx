@@ -19,7 +19,6 @@ const LnurlWorkflow: React.FC<LnurlWorkflowProps> = ({ parsed, balanceSats, onBa
   const [step, setStep] = useState<PaymentStep>('amount');
   const [amount, setAmount] = useState<string>('');
   const [feesIncluded, setFeesIncluded] = useState(false);
-  const [feesManuallySet, setFeesManuallySet] = useState(false);
   const [comment, setComment] = useState<string>('');
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState<boolean>(false);
@@ -126,7 +125,7 @@ const LnurlWorkflow: React.FC<LnurlWorkflowProps> = ({ parsed, balanceSats, onBa
         <input
           type="number"
           value={amount}
-          onChange={(e) => { setAmount(e.target.value); if (!feesManuallySet) setFeesIncluded(false); }}
+          onChange={(e) => { setAmount(e.target.value); setFeesIncluded(false); }}
           placeholder={`Between ${minSats.toLocaleString('en-US').replace(/,/g, ' ')} and ${maxSats.toLocaleString('en-US').replace(/,/g, ' ')} sats`}
           className="w-full p-4 bg-spark-dark border border-spark-border rounded-xl text-spark-text-primary placeholder-spark-text-muted focus:border-spark-electric focus:ring-2 focus:ring-spark-electric/20 transition-all [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
           disabled={isLoading}
@@ -139,7 +138,7 @@ const LnurlWorkflow: React.FC<LnurlWorkflowProps> = ({ parsed, balanceSats, onBa
           {[1000, 10000, 100000].filter(v => v >= minSats && v <= maxSats).map((quickAmount) => (
             <button
               key={quickAmount}
-              onClick={() => { setAmount(String(quickAmount)); if (!feesManuallySet) setFeesIncluded(false); }}
+              onClick={() => { setAmount(String(quickAmount)); setFeesIncluded(false); }}
               className={`flex-1 py-2 text-sm font-medium rounded-lg transition-all ${
                 amountNum === quickAmount && !isSendAll
                   ? 'bg-spark-primary text-white'
@@ -161,32 +160,6 @@ const LnurlWorkflow: React.FC<LnurlWorkflowProps> = ({ parsed, balanceSats, onBa
               Send All
             </button>
           )}
-        </div>
-        {/* Include fees toggle */}
-        <div
-          className="flex items-center justify-between mt-3 p-3 rounded-xl select-none"
-        >
-          <div>
-            <span className="text-sm font-medium text-spark-text-primary">Include fees</span>
-            <p className="text-xs text-spark-text-secondary mt-0.5">
-              Fees are deducted from the amount you enter
-            </p>
-          </div>
-          <button
-            type="button"
-            role="switch"
-            aria-checked={feesIncluded}
-            onClick={() => { setFeesIncluded(!feesIncluded); setFeesManuallySet(!feesIncluded); }}
-            className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full transition-colors ${
-              feesIncluded ? 'bg-spark-warning' : 'bg-spark-border'
-            }`}
-          >
-            <span
-              className={`pointer-events-none inline-block h-5 w-5 rounded-full bg-white shadow transform transition-transform mt-0.5 ${
-                feesIncluded ? 'translate-x-[22px]' : 'translate-x-0.5'
-              }`}
-            />
-          </button>
         </div>
       </div>
 
