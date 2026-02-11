@@ -19,7 +19,6 @@ import GetRefundPage from './pages/GetRefundPage';
 import BackupPage from './pages/BackupPage';
 import SettingsPage from './pages/SettingsPage';
 import FiatCurrenciesPage from './pages/FiatCurrenciesPage';
-import BuyBitcoinPage from './pages/BuyBitcoinPage';
 import { getSettings } from './services/settings';
 import { isDepositRejected } from './services/depositState';
 import {
@@ -32,7 +31,7 @@ import { useIOSViewportFix } from './hooks/useIOSViewportFix';
 const AppContent: React.FC = () => {
   const formatError = (err: unknown): string => (err instanceof Error ? err.message : String(err));
   // Screen navigation state
-  const [currentScreen, setCurrentScreen] = useState<'home' | 'restore' | 'generate' | 'wallet' | 'getRefund' | 'settings' | 'backup' | 'fiatCurrencies' | 'buyBitcoin'>('home');
+  const [currentScreen, setCurrentScreen] = useState<'home' | 'restore' | 'generate' | 'wallet' | 'getRefund' | 'settings' | 'backup' | 'fiatCurrencies'>('home');
 
   const [isConnected, setIsConnected] = useState<boolean>(false);
   const [isLoading, setIsLoading] = useState<boolean>(true);
@@ -448,6 +447,19 @@ const AppContent: React.FC = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps -- wallet excluded to avoid re-creating on every render
   }, [isConnected, showToast]);
 
+  // Buy Bitcoin - call SDK and open MoonPay directly
+  const handleBuyBitcoin = useCallback(async () => {
+    try {
+      const response = await wallet.buyBitcoin({});
+      window.open(response.url, '_blank', 'noopener,noreferrer');
+    } catch (e) {
+      logger.error(LogCategory.SDK, 'Failed to open Buy Bitcoin', {
+        error: formatError(e),
+      });
+      showToast('error', 'Buy Bitcoin', 'Failed to open MoonPay. Please try again.');
+    }
+  }, [wallet, showToast]);
+
   // Navigation handlers
   const navigateToRestore = () => setCurrentScreen('restore');
   const navigateToGenerate = () => setCurrentScreen('generate');
@@ -506,11 +518,6 @@ const AppContent: React.FC = () => {
           <BackupPage onBack={() => setCurrentScreen('wallet')} />
         );
 
-      case 'buyBitcoin':
-        return (
-          <BuyBitcoinPage onBack={() => setCurrentScreen('wallet')} />
-        );
-
       case 'restore':
         return (
           <RestorePage
@@ -550,7 +557,7 @@ const AppContent: React.FC = () => {
             }}
             onOpenSettings={() => setCurrentScreen('settings')}
             onOpenBackup={() => setCurrentScreen('backup')}
-            onOpenBuyBitcoin={() => setCurrentScreen('buyBitcoin')}
+            onOpenBuyBitcoin={handleBuyBitcoin}
             onDepositChanged={fetchUnclaimedDeposits}
           />
         );

@@ -183,8 +183,7 @@ const WalletPage: React.FC<WalletPageProps> = ({
           fiatCurrencies={fiatCurrencies}
           scrollProgress={scrollProgress}
           onOpenMenu={() => setIsMenuOpen(true)}
-          hasUnclaimedDeposits={hasUnclaimedDeposits}
-          onOpenGetRefund={() => onOpenGetRefund('icon')}
+          onOpenBuyBitcoin={onOpenBuyBitcoin}
         />
       </div>
 
@@ -291,7 +290,6 @@ const WalletPage: React.FC<WalletPageProps> = ({
         onOpenSettings={onOpenSettings}
         onOpenBackup={onOpenBackup}
         onOpenRefund={() => onOpenGetRefund('menu')}
-        onOpenBuyBitcoin={onOpenBuyBitcoin}
         hasRejectedDeposits={hasUnclaimedDeposits}
       />
     </div>
