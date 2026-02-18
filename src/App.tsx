@@ -406,6 +406,7 @@ const AppContent: React.FC = () => {
       setIsRestoring(false);
       setIsLoading(false);
       setConfig(null);
+      throw error;
     }
   };
 
