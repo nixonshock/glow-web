@@ -4,7 +4,7 @@ import { PrimaryButton } from '../components/ui';
 import { SimpleAlert } from '../components/AlertCard';
 
 interface RestorePageProps {
-  onConnect: (mnemonic: string) => void;
+  onConnect: (mnemonic: string) => Promise<void>;
   onBack: () => void;
   onClearError: () => void;
 }
@@ -17,7 +17,7 @@ const RestorePage: React.FC<RestorePageProps> = ({
   const [mnemonic, setMnemonic] = useState<string>('');
   const [error, setError] = useState<string | null>(null);
 
-  const handleSubmit = () => {
+  const handleSubmit = async () => {
     const cleaned = mnemonic.trim().replace(/\s+/g, ' ');
     const wordCount = cleaned.split(' ').length;
 
@@ -27,7 +27,11 @@ const RestorePage: React.FC<RestorePageProps> = ({
     }
 
     setError(null);
-    onConnect(cleaned);
+    try {
+      await onConnect(cleaned);
+    } catch (err) {
+      setError('Invalid recovery phrase. Please check your words and try again.');
+    }
   };
 
   const footer = (
