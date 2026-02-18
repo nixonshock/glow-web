@@ -98,6 +98,8 @@ export const BottomSheetContainer: React.FC<BottomSheetContainerProps> = ({
   // Body dismiss translateY
   const [bodyDragY, setBodyDragY] = useState(0);
   const [animating, setAnimating] = useState(false);
+  // Track visual viewport height to account for on-screen keyboard
+  const [viewportHeight, setViewportHeight] = useState(() => window.visualViewport?.height ?? window.innerHeight);
 
   const dragging = useRef(false);
   const startY = useRef(0);
@@ -106,9 +108,18 @@ export const BottomSheetContainer: React.FC<BottomSheetContainerProps> = ({
   const wrapperRef = useRef<HTMLDivElement>(null);
   const contentHeight = useRef(0);
 
+  // Keep viewportHeight in sync with the visual viewport (shrinks when keyboard opens)
+  useEffect(() => {
+    const vv = window.visualViewport;
+    if (!vv) return;
+    const onResize = () => setViewportHeight(vv.height);
+    vv.addEventListener('resize', onResize);
+    return () => vv.removeEventListener('resize', onResize);
+  }, []);
+
   const maxPx = useCallback(() => {
-    return window.innerHeight * (maxHeightVh / 100);
-  }, [maxHeightVh]);
+    return viewportHeight * (maxHeightVh / 100);
+  }, [viewportHeight, maxHeightVh]);
 
   const getSnapPoints = useCallback((): number[] => {
     const content = contentHeight.current;
@@ -258,7 +269,8 @@ export const BottomSheetContainer: React.FC<BottomSheetContainerProps> = ({
     <Transition
       show={isOpen}
       as="div"
-      className="absolute inset-0 z-50 overflow-hidden flex flex-col justify-end pointer-events-none"
+      className="absolute inset-x-0 top-0 z-50 overflow-hidden flex flex-col justify-end pointer-events-none"
+      style={{ height: `${viewportHeight}px` }}
     >
       {showBackdrop && (
         <Transition.Child
