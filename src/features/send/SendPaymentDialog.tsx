@@ -94,6 +94,12 @@ const SendPaymentDialog: React.FC<SendPaymentDialogProps> = ({ isOpen, onClose, 
         const sats = Math.floor(parseResult.amountMsat / 1000);
         setAmount(String(sats));
         await prepareSendPayment(currentInput, sats);
+      } else if (parseResult.type === 'bolt11Invoice') {
+        // Zero-amount invoice: let user enter the amount
+        wallet.getWalletInfo().then(info => {
+          if (info) setBalanceSats(info.balanceSats);
+        }).catch(() => { /* balance fetch is best-effort */ });
+        setCurrentStep('amount');
       } else if (parseResult.type === 'bitcoinAddress' || parseResult.type === 'sparkAddress') {
         // Fetch balance for "Send All" option
         wallet.getWalletInfo().then(info => {

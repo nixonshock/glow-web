@@ -27,7 +27,7 @@ const AmountStep: React.FC<AmountStepProps> = ({
     setLocalAmount(amount || '');
   }, [amount]);
 
-  const validAmount = localAmount && parseInt(localAmount) > 0;
+  const validAmount = localAmount !== '' && parseInt(localAmount) > 0;
   const amountNum = parseInt(localAmount) || 0;
 
   const isSendAll = balanceSats !== undefined && balanceSats > 0 && amountNum === balanceSats && feesIncluded;
