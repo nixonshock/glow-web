@@ -27,7 +27,7 @@ const AmountStep: React.FC<AmountStepProps> = ({
     setLocalAmount(amount || '');
   }, [amount]);
 
-  const validAmount = localAmount && parseInt(localAmount) > 0;
+  const validAmount = localAmount !== '' && parseInt(localAmount) >= 0;
   const amountNum = parseInt(localAmount) || 0;
 
   const isSendAll = balanceSats !== undefined && balanceSats > 0 && amountNum === balanceSats && feesIncluded;
@@ -56,7 +56,7 @@ const AmountStep: React.FC<AmountStepProps> = ({
           placeholder="Enter amount in satoshis"
           className="w-full p-4 bg-spark-dark border border-spark-border rounded-xl text-spark-text-primary placeholder-spark-text-muted focus:border-spark-electric focus:ring-2 focus:ring-spark-electric/20 transition-all [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
           disabled={isLoading}
-          min={1}
+          min={0}
           data-testid="amount-input"
         />
         
