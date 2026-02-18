@@ -138,7 +138,7 @@ const SendPaymentDialog: React.FC<SendPaymentDialogProps> = ({ isOpen, onClose, 
 
   // Common prepare for all input types
   const prepareSendPayment = async (paymentRequest: string, amountSats: number, feePolicy?: FeePolicy) => {
-    if (amountSats < 0) {
+    if (amountSats <= 0) {
       setError('Please enter a valid amount');
       return;
     }
@@ -161,7 +161,7 @@ const SendPaymentDialog: React.FC<SendPaymentDialogProps> = ({ isOpen, onClose, 
   };
 
   const onAmountNext = async (amountNum: number, includeFees?: boolean) => {
-    if (amountNum < 0) {
+    if (!amountNum || amountNum <= 0) {
       setError('Please enter a valid amount');
       return;
     }
