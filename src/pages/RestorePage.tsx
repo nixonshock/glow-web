@@ -7,12 +7,14 @@ interface RestorePageProps {
   onConnect: (mnemonic: string) => Promise<void>;
   onBack: () => void;
   onClearError: () => void;
+  isLoading?: boolean;
 }
 
 const RestorePage: React.FC<RestorePageProps> = ({
   onConnect,
   onBack,
-  onClearError
+  onClearError,
+  isLoading = false,
 }) => {
   const [mnemonic, setMnemonic] = useState<string>('');
   const [error, setError] = useState<string | null>(null);
@@ -38,11 +40,11 @@ const RestorePage: React.FC<RestorePageProps> = ({
     <div className="max-w-xl mx-auto">
       <PrimaryButton
         onClick={handleSubmit}
-        disabled={!mnemonic.trim()}
+        disabled={!mnemonic.trim() || isLoading}
         className="w-full"
         data-testid="restore-confirm-button"
       >
-        Restore Wallet
+        {isLoading ? 'Restoring...' : 'Restore Wallet'}
       </PrimaryButton>
     </div>
   );

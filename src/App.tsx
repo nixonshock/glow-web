@@ -475,7 +475,7 @@ const AppContent: React.FC = () => {
       return null;
     }
 
-    if (isLoading) {
+    if (isLoading && currentScreen !== 'restore') {
       return (
         <div className="absolute inset-0 bg-spark-void/95 backdrop-blur-sm z-50 flex items-center justify-center">
           <LoadingSpinner />
@@ -525,6 +525,7 @@ const AppContent: React.FC = () => {
             onConnect={(mnemonic) => connectWallet(mnemonic, true)}
             onBack={navigateToHome}
             onClearError={clearError}
+            isLoading={isLoading}
           />
         );
 
