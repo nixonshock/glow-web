@@ -27,7 +27,7 @@ const FiatCurrenciesPage: React.FC<FiatCurrenciesPageProps> = ({ onBack }) => {
         setSelectedCurrencies(settings.selectedCurrencies);
 
         // Load available currencies from SDK
-        const fiatCurrencies = await wallet.listFiatCurrencies();
+        const fiatCurrencies = (await wallet.listFiatCurrencies()).currencies;
         setCurrencies(fiatCurrencies);
       } catch (error) {
         logger.error(LogCategory.SDK, 'Failed to load fiat currencies', {

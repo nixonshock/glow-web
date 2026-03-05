@@ -1,5 +1,5 @@
 // Glow Service Worker
-const CACHE_NAME = 'glow-v14';
+const CACHE_NAME = 'glow-v15';
 const STATIC_ASSETS = [
   '/',
   '/index.html',
@@ -9,6 +9,8 @@ const STATIC_ASSETS = [
   '/icons/Glow-icon-512.png',
   '/icons/Glow-icon-maskable-192.png',
   '/icons/Glow-icon-maskable-512.png',
+  '/assets/Glow_Logo.png',
+  '/assets/logo-breez-header.svg',
 ];
 
 // Install event - cache static assets
@@ -88,57 +90,4 @@ self.addEventListener('fetch', (event) => {
         });
       })
   );
-});
-
-// Handle push notifications from server (for future offline payment notifications)
-self.addEventListener('push', (event) => {
-  if (event.data) {
-    let data;
-    try {
-      data = event.data.json();
-    } catch (e) {
-      // If not JSON, treat as text
-      data = { body: event.data.text() };
-    }
-
-    const options = {
-      body: data.body || 'You received a payment!',
-      icon: '/icons/Glow-icon-192.png',
-      badge: '/icons/Glow-icon-192.png',
-      vibrate: [200, 100, 200],
-      tag: data.tag || 'glow-notification',
-      renotify: true,
-      data: data.data || {},
-      actions: [
-        { action: 'open', title: 'Open Glow' },
-        { action: 'dismiss', title: 'Dismiss' },
-      ],
-    };
-
-    event.waitUntil(
-      self.registration.showNotification(data.title || 'Glow', options)
-    );
-  }
-});
-
-// Handle notification clicks
-self.addEventListener('notificationclick', (event) => {
-  event.notification.close();
-  
-  if (event.action === 'open' || !event.action) {
-    event.waitUntil(
-      clients.matchAll({ type: 'window' }).then((clientList) => {
-        // Focus existing window if available
-        for (const client of clientList) {
-          if (client.url.includes(self.location.origin) && 'focus' in client) {
-            return client.focus();
-          }
-        }
-        // Otherwise open new window
-        if (clients.openWindow) {
-          return clients.openWindow('/');
-        }
-      })
-    );
-  }
 });

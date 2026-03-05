@@ -50,7 +50,7 @@ const GetRefundPage: React.FC<GetRefundPageProps> = ({ onBack, animationDirectio
     setIsLoading(true);
     setError(null);
     try {
-      const list = await wallet.unclaimedDeposits();
+      const list = (await wallet.listUnclaimedDeposits({})).deposits;
       // Only show deposits that have been rejected
       const rejectedDeposits = list.filter(d => isDepositRejected(d.txid, d.vout));
 
@@ -83,11 +83,11 @@ const GetRefundPage: React.FC<GetRefundPageProps> = ({ onBack, animationDirectio
     let listenerId: string | null = null;
     (async () => {
       try {
-        listenerId = await wallet.addEventListener((event: SdkEvent) => {
+        listenerId = await wallet.addEventListener({ onEvent: (event: SdkEvent) => {
           if (event.type === 'synced' || event.type === 'claimedDeposits' || event.type === 'unclaimedDeposits') {
             void load();
           }
-        });
+        } });
       } catch (e) {
         logger.warn(LogCategory.SDK, 'Failed to attach refund page event listener', {
           error: e instanceof Error ? e.message : String(e),
@@ -133,7 +133,7 @@ const GetRefundPage: React.FC<GetRefundPageProps> = ({ onBack, animationDirectio
 
     try {
       const fee: Fee = { type: 'fixed', amount: feeEstimates[selectedFeeRate] };
-      const result = await wallet.refundDeposit(selectedDeposit.txid, selectedDeposit.vout, destination.trim(), fee);
+      const result = await wallet.refundDeposit({ txid: selectedDeposit.txid, vout: selectedDeposit.vout, destinationAddress: destination.trim(), fee });
 
       // Remove from rejected list after successful refund
       removeRejectedDeposit(selectedDeposit.txid, selectedDeposit.vout);

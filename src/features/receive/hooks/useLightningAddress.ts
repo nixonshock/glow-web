@@ -3,6 +3,7 @@ import type { LightningAddressInfo } from '@breeztech/breez-sdk-spark';
 import { useWallet } from '../../../contexts/WalletContext';
 import { generateRandomName } from '../../../utils/randomName';
 import { logger, LogCategory } from '@/services/logger';
+import { formatError } from '@/utils/formatError';
 
 export interface UseLightningAddress {
   address: LightningAddressInfo | null;
@@ -21,7 +22,6 @@ export interface UseLightningAddress {
 }
 
 const UNSUPPORTED_MESSAGE = 'Lightning addresses are not available in this environment.';
-const formatError = (err: unknown): string => (err instanceof Error ? err.message : String(err));
 
 export const useLightningAddress = (): UseLightningAddress => {
   const wallet = useWallet();
@@ -64,15 +64,15 @@ export const useLightningAddress = (): UseLightningAddress => {
         for (let attempt = 0; attempt < 3; attempt++) {
           const suffix = attempt === 0 ? '' : String(Math.floor(1000 + Math.random() * 9000));
           const username = baseName + suffix;
-          const isAvailable = await wallet.checkLightningAddressAvailable(username);
+          const isAvailable = await wallet.checkLightningAddressAvailable({ username });
           if (isAvailable) {
-            await wallet.registerLightningAddress(username, `Pay to ${username}@breez.tips`);
+            await wallet.registerLightningAddress({ username, description: `Pay to ${username}@breez.tips` });
             addr = await wallet.getLightningAddress();
             break;
           }
         }
       }
-      setAddress(addr);
+      setAddress(addr ?? null);
     } catch (err) {
       logger.error(LogCategory.PAYMENT, 'Failed to load Lightning address', {
         error: formatError(err),
@@ -119,16 +119,16 @@ export const useLightningAddress = (): UseLightningAddress => {
     setError(null);
 
     try {
-      const isAvailable = await wallet.checkLightningAddressAvailable(username);
+      const isAvailable = await wallet.checkLightningAddressAvailable({ username });
       if (!isAvailable) {
         setError('This username is not available');
         setIsLoading(false);
         return;
       }
 
-      await wallet.registerLightningAddress(username, `Pay to ${username}@breez.tips`);
+      await wallet.registerLightningAddress({ username, description: `Pay to ${username}@breez.tips` });
       const actualInfo = await wallet.getLightningAddress();
-      setAddress(actualInfo);
+      setAddress(actualInfo ?? null);
       setIsEditing(false);
       setEditValue('');
     } catch (err) {

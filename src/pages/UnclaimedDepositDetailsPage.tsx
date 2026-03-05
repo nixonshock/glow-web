@@ -57,7 +57,7 @@ const UnclaimedDepositDetailsPage: React.FC<UnclaimedDepositDetailsPageProps> = 
     setIsProcessing(true);
     try {
       const maxFee: MaxFee = { type: 'fixed', amount: requiredFeeSats };
-      await wallet.claimDeposit(deposit.txid, deposit.vout, maxFee);
+      await wallet.claimDeposit({ txid: deposit.txid, vout: deposit.vout, maxFee });
       // Remove from rejected list if it was there
       removeRejectedDeposit(deposit.txid, deposit.vout);
       onChanged?.();
