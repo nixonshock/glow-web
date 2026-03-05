@@ -209,16 +209,23 @@ const CollapsingWalletHeader: React.FC<CollapsingWalletHeaderProps> = ({
 
         {/* Balance display */}
         <div className="text-center">
-          {/* Label */}
-          <div className="text-spark-text-muted text-xs font-display font-medium tracking-widest uppercase mb-1">
-            {isSyncing ? (
-              <span className="inline-flex items-center gap-1.5">
-                <span className="w-1.5 h-1.5 rounded-full bg-spark-primary animate-pulse" />
-                Syncing
-              </span>
-            ) : (
-              <>Balance<span className="text-spark-text-muted/50 mx-1.5">·</span><span className="text-spark-text-muted/50">sats</span></>
-            )}
+          {/* Label — fixed height with cross-fade to prevent layout shift */}
+          <div className="relative h-4 mb-1 flex items-center justify-center">
+            <span
+              className={`absolute text-spark-text-muted text-xs font-display font-medium tracking-widest uppercase transition-opacity duration-300 inline-flex items-center gap-1.5 ${
+                isSyncing ? 'opacity-100' : 'opacity-0'
+              }`}
+            >
+              <span className="w-1.5 h-1.5 rounded-full bg-spark-primary animate-pulse" />
+              Syncing
+            </span>
+            <span
+              className={`absolute text-spark-text-muted text-xs font-display font-medium tracking-widest uppercase transition-opacity duration-300 ${
+                isSyncing ? 'opacity-0' : 'opacity-100'
+              }`}
+            >
+              Balance<span className="text-spark-text-muted/50 mx-1.5">·</span><span className="text-spark-text-muted/50">sats</span>
+            </span>
           </div>
 
           {/* Main balance */}
