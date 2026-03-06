@@ -35,6 +35,22 @@ cd glow-web
 npm install
 ```
 
+### Set up environment variables
+
+1. Copy the example environment file:
+
+```bash
+cp example.env .env.local
+```
+
+2. Edit `.env.local` and add your Breez API key (required):
+
+```
+VITE_BREEZ_API_KEY="your_breez_api_key_here"
+```
+
+See `example.env` for all available configuration options.
+
 ### Start the development server
 
 ```bash

@@ -1,6 +1,7 @@
 import React, { useEffect, useLayoutEffect, useState, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { Transition } from '@headlessui/react';
+import { isPasskeyMode } from '@/services/passkeyService';
 // Star positions around the logo (relative to center, in pixels)
 const STARS = [
   { x: -28, y: -20, size: 3 },
@@ -28,6 +29,8 @@ const SideMenu: React.FC<SideMenuProps> = ({ isOpen, onClose, onLogout, onOpenSe
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
   const [starsAnimating, setStarsAnimating] = useState(false);
   const prevIsOpenRef = useRef(false);
+
+  const isPasskey = isPasskeyMode();
 
   // Trigger star animation when sidebar opens
   useEffect(() => {
@@ -245,7 +248,9 @@ const SideMenu: React.FC<SideMenuProps> = ({ isOpen, onClose, onLogout, onOpenSe
                     Logout Warning
                   </h3>
                   <p className="text-spark-text-secondary text-sm text-center mb-6">
-                    Make sure you've saved your recovery phrase before logging out. You'll need it to access your funds again.
+                    {isPasskey
+                      ? "You'll need to authenticate with the same passkey to access your funds again."
+                      : "Make sure you've saved your recovery phrase before logging out. You'll need it to access your funds again."}
                   </p>
 
                   <div className="flex gap-3">
