@@ -40,19 +40,19 @@ const AppContent: React.FC = () => {
 
   // Navigate to wallet after successful connect
   const handleConnect = async (mnemonic: string, restore: boolean) => {
-    await sdk.connectWallet(mnemonic, restore);
+    await sdk.connectWallet({ type: 'mnemonic', mnemonic }, restore);
     setCurrentScreen('wallet');
   };
 
   // Navigate to wallet after passkey connect
   const handlePasskeyConnect = async (seed: Seed, walletName: string) => {
-    await sdk.connectWithSeed(seed, false, walletName);
+    await sdk.connectWallet(seed, false, walletName);
     setCurrentScreen('wallet');
   };
 
   const handleLogout = async () => {
-    await sdk.handleLogout();
     setCurrentScreen('home');
+    await sdk.handleLogout();
   };
 
   // Render screens
@@ -132,6 +132,16 @@ const AppContent: React.FC = () => {
         );
 
       case 'wallet':
+        if (!sdk.isConnected) {
+          return (
+            <HomePage
+              onRestoreWallet={() => setCurrentScreen('restore')}
+              onCreateNewWallet={() => setCurrentScreen('generate')}
+              onUsePasskey={() => setCurrentScreen('passkey')}
+              prfAvailable={sdk.prfAvailable}
+            />
+          );
+        }
         return (
           <WalletPage
             walletInfo={sdk.walletInfo}

@@ -24,9 +24,6 @@ const PasskeyPage: React.FC<PasskeyPageProps> = ({
   const [manualWalletName, setManualWalletName] = useState('');
   const [showManualInput, setShowManualInput] = useState(false);
 
-  const handleBack = () => {
-    onBack();
-  };
 
   // Fetch wallet names on mount
   useEffect(() => {
@@ -108,7 +105,7 @@ const PasskeyPage: React.FC<PasskeyPageProps> = ({
 
   if (isLoading) {
     return (
-      <PageLayout onBack={handleBack} footer={<div />} title="Passkey">
+      <PageLayout onBack={onBack} footer={<div />} title="Passkey">
         <div className="flex flex-col items-center justify-center h-full">
           <LoadingSpinner text="Discovering wallets..." />
         </div>
@@ -118,7 +115,7 @@ const PasskeyPage: React.FC<PasskeyPageProps> = ({
 
   if (isConnecting) {
     return (
-      <PageLayout onBack={handleBack} footer={<div />} title="Passkey">
+      <PageLayout onBack={onBack} footer={<div />} title="Passkey">
         <div className="flex flex-col items-center justify-center h-full">
           <LoadingSpinner text="Connecting..." />
         </div>
@@ -137,14 +134,14 @@ const PasskeyPage: React.FC<PasskeyPageProps> = ({
       >
         Connect
       </PrimaryButton>
-      <SecondaryButton className="w-full" onClick={handleBack}>
+      <SecondaryButton className="w-full" onClick={onBack}>
         Go Back
       </SecondaryButton>
     </div>
   );
 
   return (
-    <PageLayout onBack={handleBack} footer={footer} title="Passkey">
+    <PageLayout onBack={onBack} footer={footer} title="Passkey">
       <div className="max-w-xl mx-auto w-full space-y-6">
         <div className="flex justify-center mb-4">
           <div className="w-16 h-16 rounded-2xl bg-spark-primary/20 flex items-center justify-center">

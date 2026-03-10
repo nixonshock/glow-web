@@ -129,7 +129,7 @@ const HomePage: React.FC<HomePageProps> = ({
               {/* Primary: Use Passkey */}
               <button
                 onClick={onUsePasskey}
-                data-testid="create-wallet-button"
+                data-testid="create-wallet-passkey-button"
                 className="button w-full py-4 text-base tracking-wider"
               >
                 Use Passkey

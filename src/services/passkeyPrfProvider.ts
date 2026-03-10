@@ -67,9 +67,11 @@ class BrowserPasskeyPrfProvider implements PasskeyPrfProvider {
   async derivePrfSeed(salt: string): Promise<Uint8Array> {
     logger.info(LogCategory.AUTH, 'Deriving PRF seed');
 
-    // Always try get() first — this shows the passkey picker which includes
-    // passkeys synced from other devices (e.g. iCloud Keychain from iOS).
-    // Only fall back to create() if no passkey exists at all.
+    // Try get() first to show the passkey picker (includes cross-device
+    // passkeys like iCloud Keychain). If no existing passkey is found, the
+    // browser requires the user to cancel the get() prompt before we can call
+    // create() to register a new passkey — this is a browser limitation, not
+    // a user error, so NotAllowedError is the expected path for first-time users.
     try {
       return await this.derivePrfSeedWithExistingPasskey(salt);
     } catch (e) {
