@@ -4,6 +4,7 @@ import { PrimaryButton, SecondaryButton } from '../components/ui';
 import LoadingSpinner from '../components/LoadingSpinner';
 import PageLayout from '../components/layout/PageLayout';
 import { AlertCard } from '../components/AlertCard';
+import { UploadIcon, CheckIcon } from '../components/Icons';
 import { getWallet, listWalletNames, storeWalletName } from '@/services/passkeyService';
 import { logger, LogCategory } from '@/services/logger';
 
@@ -145,9 +146,7 @@ const PasskeyPage: React.FC<PasskeyPageProps> = ({
       <div className="max-w-xl mx-auto w-full space-y-6">
         <div className="flex justify-center mb-4">
           <div className="w-16 h-16 rounded-2xl bg-spark-primary/20 flex items-center justify-center">
-            <svg className="w-8 h-8 text-spark-primary" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-              <path strokeLinecap="round" strokeLinejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
-            </svg>
+            <UploadIcon size="xl" className="text-spark-primary" />
           </div>
         </div>
 
@@ -179,9 +178,7 @@ const PasskeyPage: React.FC<PasskeyPageProps> = ({
                 </span>
                 <div className={`w-6 h-6 rounded-full flex items-center justify-center ${selectedWalletName === name && !manualWalletName.trim() ? 'bg-spark-primary' : 'bg-transparent'}`}>
                   {selectedWalletName === name && !manualWalletName.trim() && (
-                    <svg className="w-4 h-4 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
-                      <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
-                    </svg>
+                    <CheckIcon size="sm" className="text-white" />
                   )}
                 </div>
               </div>
@@ -215,9 +212,7 @@ const PasskeyPage: React.FC<PasskeyPageProps> = ({
                 </span>
                 <div className={`w-6 h-6 rounded-full flex items-center justify-center ${manualWalletName.trim() ? 'bg-spark-primary' : 'bg-transparent'}`}>
                   {manualWalletName.trim() && (
-                    <svg className="w-4 h-4 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
-                      <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
-                    </svg>
+                    <CheckIcon size="sm" className="text-white" />
                   )}
                 </div>
               </div>
