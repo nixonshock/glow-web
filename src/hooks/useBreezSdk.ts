@@ -3,13 +3,13 @@ import type {
   BreezSdk,
   Config,
   GetInfoResponse,
-  Network,
   Payment,
   SdkEvent,
   Rate,
   FiatCurrency,
   DepositInfo,
   LogEntry,
+  Seed,
 } from '@breeztech/breez-sdk-spark';
 import { connect, initLogging } from '@breeztech/breez-sdk-spark';
 import { useLatest } from './useLatest';
@@ -18,6 +18,14 @@ import { logger, LogCategory, logSdkMessage } from '../services/logger';
 import { formatError } from '../utils/formatError';
 import { isDepositRejected } from '../services/depositState';
 import { hideSplash } from '../main';
+import {
+  isPrfAvailable,
+  isPasskeyMode,
+  setPasskeyMode,
+  clearPasskeyMode,
+  releasePasskey,
+  getWallet,
+} from '../services/passkeyService';
 
 // ============================================
 // SDK logging (initialized once)
@@ -58,10 +66,11 @@ export interface BreezSdkState {
   error: string | null;
   hasRejectedDeposits: boolean;
   celebrationAmount: number | null;
+  prfAvailable: boolean;
 }
 
 export interface BreezSdkActions {
-  connectWallet: (mnemonic: string, restore: boolean, overrideNetwork?: Network) => Promise<void>;
+  connectWallet: (seed: Seed, restore: boolean, passkeyWalletName?: string) => Promise<void>;
   refreshWalletData: (showLoading?: boolean) => Promise<void>;
   fetchUnclaimedDeposits: () => Promise<void>;
   handleLogout: () => Promise<void>;
@@ -91,6 +100,7 @@ export function useBreezSdk(
   const [config, setConfig] = useState<Config | null>(null);
   const [hasRejectedDeposits, setHasRejectedDeposits] = useState(false);
   const [celebrationAmount, setCelebrationAmount] = useState<number | null>(null);
+  const [prfAvailable, setPrfAvailable] = useState(false);
 
   // Refs
   const isInitialLoadRef = useRef(true);
@@ -202,7 +212,7 @@ export function useBreezSdk(
   // Connection lifecycle
   // ----------------------------------------
 
-  const connectWallet = useCallback(async (mnemonic: string, restore: boolean, overrideNetwork?: Network) => {
+  const connectWallet = useCallback(async (seed: Seed, restore: boolean, passkeyWalletName?: string) => {
     let connectedSdk: BreezSdk | undefined;
     try {
       logger.info(LogCategory.SDK, 'Initiating wallet connection', { restore });
@@ -217,24 +227,31 @@ export function useBreezSdk(
 
       if (!import.meta.env.VITE_BREEZ_API_KEY) {
         showToast('error', 'Missing API Key', 'Please add VITE_BREEZ_API_KEY to your .env file');
+        setIsLoading(false);
+        return;
       }
 
       initSdkLogging();
 
-      const cfg = buildConnectConfig(overrideNetwork);
+      const cfg = buildConnectConfig();
       setConfig(cfg);
 
       connectedSdk = await connect({
         config: cfg,
-        seed: { type: 'mnemonic', mnemonic },
+        seed,
         storageDir: 'spark-wallet-example',
       });
       setSdk(connectedSdk);
 
       logger.sdkInitialized();
-      logger.authSuccess('mnemonic');
+      logger.authSuccess(seed.type);
       logger.info(LogCategory.SDK, 'Wallet connected successfully');
-      saveMnemonic(mnemonic);
+
+      if (passkeyWalletName != null) {
+        setPasskeyMode(passkeyWalletName);
+      } else if (seed.type === 'mnemonic') {
+        saveMnemonic(seed.mnemonic);
+      }
 
       const [info, txns] = await Promise.all([
         connectedSdk.getInfo({}),
@@ -245,7 +262,6 @@ export function useBreezSdk(
 
       setIsConnected(true);
 
-      // Fetch unclaimed deposits using the new SDK instance directly
       try {
         const result = await connectedSdk.listUnclaimedDeposits({});
         const deposits = result.deposits;
@@ -259,7 +275,7 @@ export function useBreezSdk(
     } catch (e) {
       const errorMsg = formatError(e);
       logger.error(LogCategory.SDK, 'Error connecting wallet', { error: errorMsg });
-      logger.authFailure('mnemonic', errorMsg);
+      logger.authFailure(seed.type, errorMsg);
 
       // If SDK connected but a subsequent step failed, disconnect to avoid leaked instance
       if (connectedSdk) {
@@ -267,7 +283,7 @@ export function useBreezSdk(
         setSdk(null);
       }
 
-      setError('Failed to connect wallet. Please check your mnemonic and try again.');
+      setError('Failed to connect wallet. Please try again.');
       setIsSyncing(false);
       setIsLoading(false);
       setConfig(null);
@@ -293,6 +309,8 @@ export function useBreezSdk(
     // Always reset all state — even if disconnect threw
     setSdk(null);
     clearMnemonic();
+    clearPasskeyMode();
+    releasePasskey();
     shownPaymentIdsRef.current.clear();
     setIsConnected(false);
     setIsSyncing(false);
@@ -331,6 +349,11 @@ export function useBreezSdk(
     return () => { document.body.setAttribute('data-lnurl-enabled', 'false'); };
   }, [config?.lnurlDomain]);
 
+  // Check PRF availability on mount
+  useEffect(() => {
+    isPrfAvailable().then(setPrfAvailable).catch(() => setPrfAvailable(false));
+  }, []);
+
   // Auto-reconnect on mount
   useEffect(() => {
     logger.initSession().catch((e) => {
@@ -342,11 +365,21 @@ export function useBreezSdk(
       if (savedMnemonic) {
         try {
           setIsLoading(true);
-          await connectWallet(savedMnemonic, false);
+          await connectWallet({ type: 'mnemonic', mnemonic: savedMnemonic }, false);
         } catch (e) {
           logger.error(LogCategory.SDK, 'Failed to connect with saved mnemonic', { error: formatError(e) });
           setError('Failed to connect with saved mnemonic. Please try again.');
           clearMnemonic();
+          setIsLoading(false);
+        }
+      } else if (isPasskeyMode()) {
+        try {
+          setIsLoading(true);
+          const wallet = await getWallet();
+          await connectWallet(wallet.seed, false, wallet.name);
+        } catch (e) {
+          logger.error(LogCategory.SDK, 'Failed to reconnect with passkey', { error: formatError(e) });
+          setError('Failed to authenticate with passkey. Please try again.');
           setIsLoading(false);
         }
       } else {
@@ -411,6 +444,7 @@ export function useBreezSdk(
     error,
     hasRejectedDeposits,
     celebrationAmount,
+    prfAvailable,
     // Actions
     connectWallet,
     refreshWalletData,

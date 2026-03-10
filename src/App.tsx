@@ -14,11 +14,13 @@ import RestorePage from './pages/RestorePage';
 import GeneratePage from './pages/GeneratePage';
 import GetRefundPage from './pages/GetRefundPage';
 import BackupPage from './pages/BackupPage';
+import PasskeyPage from './pages/PasskeyPage';
 import SettingsPage from './pages/SettingsPage';
 import FiatCurrenciesPage from './pages/FiatCurrenciesPage';
 import { useIOSViewportFix } from './hooks/useIOSViewportFix';
+import type { Seed } from '@breeztech/breez-sdk-spark';
 
-type Screen = 'home' | 'restore' | 'generate' | 'wallet' | 'getRefund' | 'settings' | 'backup' | 'fiatCurrencies';
+type Screen = 'home' | 'restore' | 'generate' | 'wallet' | 'getRefund' | 'settings' | 'backup' | 'fiatCurrencies' | 'passkey';
 
 const AppContent: React.FC = () => {
   const [currentScreen, setCurrentScreen] = useState<Screen>('home');
@@ -38,13 +40,19 @@ const AppContent: React.FC = () => {
 
   // Navigate to wallet after successful connect
   const handleConnect = async (mnemonic: string, restore: boolean) => {
-    await sdk.connectWallet(mnemonic, restore);
+    await sdk.connectWallet({ type: 'mnemonic', mnemonic }, restore);
+    setCurrentScreen('wallet');
+  };
+
+  // Navigate to wallet after passkey connect
+  const handlePasskeyConnect = async (seed: Seed, walletName: string) => {
+    await sdk.connectWallet(seed, false, walletName);
     setCurrentScreen('wallet');
   };
 
   const handleLogout = async () => {
-    await sdk.handleLogout();
     setCurrentScreen('home');
+    await sdk.handleLogout();
   };
 
   // Render screens
@@ -63,6 +71,16 @@ const AppContent: React.FC = () => {
           <HomePage
             onRestoreWallet={() => setCurrentScreen('restore')}
             onCreateNewWallet={() => setCurrentScreen('generate')}
+            onUsePasskey={() => setCurrentScreen('passkey')}
+            prfAvailable={sdk.prfAvailable}
+          />
+        );
+
+      case 'passkey':
+        return (
+          <PasskeyPage
+            onWalletRestored={handlePasskeyConnect}
+            onBack={() => setCurrentScreen('home')}
           />
         );
 
@@ -114,6 +132,16 @@ const AppContent: React.FC = () => {
         );
 
       case 'wallet':
+        if (!sdk.isConnected) {
+          return (
+            <HomePage
+              onRestoreWallet={() => setCurrentScreen('restore')}
+              onCreateNewWallet={() => setCurrentScreen('generate')}
+              onUsePasskey={() => setCurrentScreen('passkey')}
+              prfAvailable={sdk.prfAvailable}
+            />
+          );
+        }
         return (
           <WalletPage
             walletInfo={sdk.walletInfo}

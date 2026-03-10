@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
-import { WarningIcon } from '../components/Icons';
+import { WarningIcon, SpinnerIcon, EyeIcon, FingerprintIcon } from '../components/Icons';
 import SlideInPage from '../components/layout/SlideInPage';
+import { isPasskeyMode, getWallet } from '@/services/passkeyService';
 import { logger, LogCategory } from '@/services/logger';
 
 interface BackupPageProps {
@@ -11,10 +12,37 @@ const BackupPage: React.FC<BackupPageProps> = ({ onBack }) => {
   const [mnemonic, setMnemonic] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
   const [isRevealed, setIsRevealed] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const isPasskey = isPasskeyMode();
 
   useEffect(() => {
-    setMnemonic(localStorage.getItem('walletMnemonic'));
-  }, []);
+    if (!isPasskey) {
+      setMnemonic(localStorage.getItem('walletMnemonic'));
+    }
+  }, [isPasskey]);
+
+  const handleRevealPasskey = async () => {
+    setIsLoading(true);
+    setError(null);
+    try {
+      const w = await getWallet();
+      if (w.seed.type === 'mnemonic' && w.seed.mnemonic) {
+        setMnemonic(w.seed.mnemonic);
+        setIsRevealed(true);
+      } else {
+        setError('Could not derive recovery phrase');
+      }
+    } catch (e) {
+      logger.error(LogCategory.AUTH, 'Failed to derive mnemonic from passkey', {
+        error: e instanceof Error ? e.message : String(e),
+      });
+      setError(e instanceof Error ? e.message : 'Failed to authenticate');
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
   const handleCopy = async () => {
     if (!mnemonic) return;
@@ -29,37 +57,71 @@ const BackupPage: React.FC<BackupPageProps> = ({ onBack }) => {
     }
   };
 
+  const handleHide = () => {
+    setIsRevealed(false);
+    if (isPasskey) {
+      setMnemonic(null);
+    }
+  };
+
   const words = mnemonic ? mnemonic.split(' ') : [];
 
   return (
     <SlideInPage title="Backup" onClose={onBack} slideFrom="left">
       <div className="p-4">
         <div className="max-w-xl mx-auto w-full space-y-6">
-          {/* Reveal toggle */}
-          {!isRevealed && mnemonic && (
+          {/* Reveal button — passkey mode */}
+          {isPasskey && !isRevealed && !mnemonic && (
+            <button
+              onClick={handleRevealPasskey}
+              disabled={isLoading}
+              className="w-full bg-spark-dark border border-spark-border rounded-2xl p-8 flex flex-col items-center gap-4 hover:border-spark-border-light transition-colors disabled:opacity-50"
+            >
+              <div className="w-16 h-16 rounded-2xl bg-spark-primary/20 flex items-center justify-center">
+                {isLoading ? (
+                  <SpinnerIcon size="xl" className="text-spark-primary" />
+                ) : (
+                  <EyeIcon size="xl" className="text-spark-primary" />
+                )}
+              </div>
+              <span className="font-display font-semibold text-spark-text-primary">
+                {isLoading ? 'Authenticating...' : 'Tap to reveal phrase'}
+              </span>
+              <span className="text-sm text-spark-text-muted">
+                {isLoading ? 'Complete passkey authentication' : 'Requires passkey authentication'}
+              </span>
+            </button>
+          )}
+
+          {/* Reveal button — mnemonic mode */}
+          {!isPasskey && !isRevealed && mnemonic && (
             <button
               onClick={() => setIsRevealed(true)}
               className="w-full bg-spark-dark border border-spark-border rounded-2xl p-8 flex flex-col items-center gap-4 hover:border-spark-border-light transition-colors"
             >
               <div className="w-16 h-16 rounded-2xl bg-spark-primary/20 flex items-center justify-center">
-                <svg className="w-8 h-8 text-spark-primary" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
-                </svg>
+                <EyeIcon size="xl" className="text-spark-primary" />
               </div>
               <span className="font-display font-semibold text-spark-text-primary">Tap to reveal phrase</span>
               <span className="text-sm text-spark-text-muted">Make sure no one is watching</span>
             </button>
           )}
 
-          {/* Mnemonic display */}
+          {/* Error message (passkey only) */}
+          {error && (
+            <div className="bg-spark-error/10 border border-spark-error/30 rounded-xl p-4 text-center">
+              <p className="text-spark-error text-sm">{error}</p>
+            </div>
+          )}
+
+          {/* Mnemonic word grid (shared) */}
           {isRevealed && mnemonic && (
             <div className="bg-spark-dark border border-spark-border rounded-2xl p-4 space-y-4">
               <div className="flex items-center justify-between">
                 <span className="text-sm font-medium text-spark-text-secondary">Recovery Phrase</span>
                 <div className="flex items-center gap-2">
                   <button
-                    onClick={() => setIsRevealed(false)}
+                    onClick={handleHide}
                     className="px-3 py-1.5 text-sm font-medium text-spark-text-muted hover:text-spark-text-primary border border-spark-border rounded-lg hover:bg-white/5 transition-colors"
                   >
                     Hide
@@ -97,8 +159,25 @@ const BackupPage: React.FC<BackupPageProps> = ({ onBack }) => {
             </div>
           )}
 
-          {/* No mnemonic state */}
-          {!mnemonic && (
+          {/* Passkey info card */}
+          {isPasskey && (
+            <div className="bg-spark-dark border border-spark-border rounded-2xl p-6">
+              <div className="flex items-start gap-4">
+                <div className="w-10 h-10 rounded-xl bg-spark-primary/20 flex items-center justify-center flex-shrink-0">
+                  <FingerprintIcon size="md" className="text-spark-primary" />
+                </div>
+                <div>
+                  <h4 className="font-medium text-spark-text-primary mb-1">Passkey Protected</h4>
+                  <p className="text-spark-text-muted text-sm">
+                    Your recovery phrase is derived from your passkey. To restore on another device, use your passkey or the recovery phrase above.
+                  </p>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* No backup found (mnemonic mode only) */}
+          {!isPasskey && !mnemonic && (
             <div className="bg-spark-dark border border-spark-border rounded-2xl p-8 text-center">
               <div className="w-16 h-16 rounded-2xl bg-spark-error/20 flex items-center justify-center mx-auto mb-4">
                 <WarningIcon size="xl" className="text-spark-error" />

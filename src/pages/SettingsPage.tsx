@@ -7,8 +7,8 @@ import { CurrencyIcon, ChevronRightIcon, DownloadIcon } from '../components/Icon
 import SlideInPage from '../components/layout/SlideInPage';
 import { logger, LogCategory } from '@/services/logger';
 import { shareOrDownloadLogs } from '@/services/logExport';
+import { useSecretTap } from '@/hooks/useSecretTap';
 
-const DEV_MODE_TAP_COUNT = 5;
 const DEV_MODE_STORAGE_KEY = 'spark-dev-mode';
 
 interface SettingsPageProps {
@@ -19,8 +19,15 @@ interface SettingsPageProps {
 
 const SettingsPage: React.FC<SettingsPageProps> = ({ onBack, config, onOpenFiatCurrencies }) => {
   const wallet = useWallet();
-  const [isDevMode, setIsDevMode] = useState<boolean>(false);
-  const [devTapCount, setDevTapCount] = useState(0);
+  const {
+    handleTap: devTap,
+    activated: isDevMode,
+    tapCount: devTapCount,
+    threshold: devTapThreshold,
+  } = useSecretTap(5, 2000, () =>
+    new URLSearchParams(window.location.search).get('dev') === 'true'
+    || localStorage.getItem(DEV_MODE_STORAGE_KEY) === 'true'
+  );
   const [selectedNetwork, setSelectedNetwork] = useState<Network>('mainnet');
   const [feeType, setFeeType] = useState<'fixed' | 'rate' | 'networkRecommended'>('fixed');
   const [feeValue, setFeeValue] = useState<string>('1');
@@ -34,11 +41,6 @@ const SettingsPage: React.FC<SettingsPageProps> = ({ onBack, config, onOpenFiatC
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
-    // Check URL param or localStorage for dev mode
-    const urlDevMode = params.get('dev') === 'true';
-    const storedDevMode = localStorage.getItem(DEV_MODE_STORAGE_KEY) === 'true';
-    setIsDevMode(urlDevMode || storedDevMode);
-
     // Get current network from URL
     const network = (params.get('network') || 'mainnet') as Network;
     setSelectedNetwork(network);
@@ -88,25 +90,10 @@ const SettingsPage: React.FC<SettingsPageProps> = ({ onBack, config, onOpenFiatC
     })();
   }, [config, wallet]);
 
-  const handleVersionTap = () => {
-    setDevTapCount(prev => {
-      const newCount = prev + 1;
-
-      if (newCount >= DEV_MODE_TAP_COUNT) {
-        setIsDevMode(current => {
-          const newDevMode = !current;
-          localStorage.setItem(DEV_MODE_STORAGE_KEY, String(newDevMode));
-          return newDevMode;
-        });
-        return 0;
-      }
-
-      return newCount;
-    });
-
-    // Reset tap count after 2 seconds of inactivity
-    setTimeout(() => setDevTapCount(0), 2000);
-  };
+  // Persist dev mode to localStorage when toggled via secret tap
+  useEffect(() => {
+    localStorage.setItem(DEV_MODE_STORAGE_KEY, String(isDevMode));
+  }, [isDevMode]);
 
   const handleNetworkChange = (network: Network) => {
     setSelectedNetwork(network);
@@ -331,15 +318,15 @@ const SettingsPage: React.FC<SettingsPageProps> = ({ onBack, config, onOpenFiatC
           {/* Version / Dev Mode Toggle */}
           <div className="text-center pt-4">
             <button
-              onClick={handleVersionTap}
+              onClick={devTap}
               className="text-spark-text-muted text-xs hover:text-spark-text-secondary transition-colors select-none"
             >
               Glow v1.0.0
               {isDevMode && <span className="ml-1 text-spark-primary">(dev)</span>}
             </button>
-            {devTapCount > 0 && devTapCount < DEV_MODE_TAP_COUNT && (
+            {devTapCount > 0 && devTapCount < devTapThreshold && (
               <p className="text-xs text-spark-text-muted mt-1">
-                {DEV_MODE_TAP_COUNT - devTapCount} more taps to {isDevMode ? 'disable' : 'enable'} dev mode
+                {devTapThreshold - devTapCount} more taps to {isDevMode ? 'disable' : 'enable'} dev mode
               </p>
             )}
           </div>

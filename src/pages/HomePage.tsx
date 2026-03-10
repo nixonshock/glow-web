@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react';
+import { useSecretTap } from '@/hooks/useSecretTap';
 
 // Star positions around the logo (relative to center, in pixels) - larger radius for bigger logo
 const STARS = [
@@ -15,10 +16,19 @@ const STARS = [
 interface HomePageProps {
   onRestoreWallet: () => void;
   onCreateNewWallet: () => void;
+  onUsePasskey: () => void;
+  prfAvailable: boolean;
 }
 
-const HomePage: React.FC<HomePageProps> = ({ onRestoreWallet, onCreateNewWallet }) => {
+const HomePage: React.FC<HomePageProps> = ({
+  onRestoreWallet,
+  onCreateNewWallet,
+  onUsePasskey,
+  prfAvailable,
+}) => {
   const [starsAnimating, setStarsAnimating] = useState(false);
+  const [showMnemonicOptions, setShowMnemonicOptions] = useState(false);
+  const { handleTap: handleLogoTap, activated: showPasskeyOptions } = useSecretTap(5, 2000);
 
   // Trigger star animation on mount
   useEffect(() => {
@@ -84,6 +94,7 @@ const HomePage: React.FC<HomePageProps> = ({ onRestoreWallet, onCreateNewWallet 
               src="/assets/Glow_Logo.png"
               alt="Glow"
               className="w-full h-full object-contain"
+              onClick={handleLogoTap}
             />
             {/* Twinkling stars */}
             {STARS.map((star, i) => (
@@ -116,23 +127,55 @@ const HomePage: React.FC<HomePageProps> = ({ onRestoreWallet, onCreateNewWallet 
 
         {/* CTA Buttons */}
         <div className="w-full max-w-xs space-y-4">
-          {/* Primary CTA */}
-          <button
-            onClick={onCreateNewWallet}
-            data-testid="create-wallet-button"
-            className="button w-full py-4 text-base tracking-wider"
-          >
-            Get Started
-          </button>
+          {prfAvailable && showPasskeyOptions && !showMnemonicOptions ? (
+            <>
+              {/* Primary: Use Passkey */}
+              <button
+                onClick={onUsePasskey}
+                data-testid="create-wallet-passkey-button"
+                className="button w-full py-4 text-base tracking-wider"
+              >
+                Use Passkey
+              </button>
 
-          {/* Secondary CTA */}
-          <button
-            onClick={onRestoreWallet}
-            data-testid="restore-wallet-button"
-            className="button-secondary w-full py-4 rounded-xl font-display font-semibold text-sm tracking-wide"
-          >
-            Restore from Backup
-          </button>
+              {/* Toggle to mnemonic options */}
+              <button
+                onClick={() => setShowMnemonicOptions(true)}
+                className="text-spark-text-muted text-xs hover:text-spark-text-secondary transition-colors w-full text-center py-2"
+              >
+                Use Recovery Phrase Instead
+              </button>
+            </>
+          ) : (
+            <>
+              {/* Mnemonic flow */}
+              <button
+                onClick={onCreateNewWallet}
+                data-testid="create-wallet-button"
+                className="button w-full py-4 text-base tracking-wider"
+              >
+                Get Started
+              </button>
+
+              <button
+                onClick={onRestoreWallet}
+                data-testid="restore-wallet-button"
+                className="button-secondary w-full py-4 rounded-xl font-display font-semibold text-sm tracking-wide"
+              >
+                Restore from Backup
+              </button>
+
+              {/* Toggle back to passkey if PRF available */}
+              {prfAvailable && showPasskeyOptions && (
+                <button
+                  onClick={() => setShowMnemonicOptions(false)}
+                  className="text-spark-text-muted text-xs hover:text-spark-text-secondary transition-colors w-full text-center py-2"
+                >
+                  Use Passkey Instead
+                </button>
+              )}
+            </>
+          )}
         </div>
       </div>
     </div>

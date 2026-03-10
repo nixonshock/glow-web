@@ -13,3 +13,6 @@ test-results/
 playwright-report/
 playwright/.cache/
 coverage/
+
+# Claude Code
+.claude/settings.local.json
