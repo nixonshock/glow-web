@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react';
+import { useSecretTap } from '@/hooks/useSecretTap';
 
 // Star positions around the logo (relative to center, in pixels) - larger radius for bigger logo
 const STARS = [
@@ -27,6 +28,7 @@ const HomePage: React.FC<HomePageProps> = ({
 }) => {
   const [starsAnimating, setStarsAnimating] = useState(false);
   const [showMnemonicOptions, setShowMnemonicOptions] = useState(false);
+  const { handleTap: handleLogoTap, activated: showPasskeyOptions } = useSecretTap(5, 2000);
 
   // Trigger star animation on mount
   useEffect(() => {
@@ -92,6 +94,7 @@ const HomePage: React.FC<HomePageProps> = ({
               src="/assets/Glow_Logo.png"
               alt="Glow"
               className="w-full h-full object-contain"
+              onClick={handleLogoTap}
             />
             {/* Twinkling stars */}
             {STARS.map((star, i) => (
@@ -124,7 +127,7 @@ const HomePage: React.FC<HomePageProps> = ({
 
         {/* CTA Buttons */}
         <div className="w-full max-w-xs space-y-4">
-          {prfAvailable && !showMnemonicOptions ? (
+          {prfAvailable && showPasskeyOptions && !showMnemonicOptions ? (
             <>
               {/* Primary: Use Passkey */}
               <button
@@ -163,7 +166,7 @@ const HomePage: React.FC<HomePageProps> = ({
               </button>
 
               {/* Toggle back to passkey if PRF available */}
-              {prfAvailable && (
+              {prfAvailable && showPasskeyOptions && (
                 <button
                   onClick={() => setShowMnemonicOptions(false)}
                   className="text-spark-text-muted text-xs hover:text-spark-text-secondary transition-colors w-full text-center py-2"
