@@ -46,7 +46,7 @@ const AppContent: React.FC = () => {
 
   // Navigate to wallet after passkey connect
   const handlePasskeyConnect = async (seed: Seed, walletName: string) => {
-    await sdk.connectWallet(seed, false, walletName);
+    await sdk.connectWallet(seed, true, walletName);
     setCurrentScreen('wallet');
   };
 
