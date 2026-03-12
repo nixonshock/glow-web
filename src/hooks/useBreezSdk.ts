@@ -70,7 +70,7 @@ export interface BreezSdkState {
 }
 
 export interface BreezSdkActions {
-  connectWallet: (seed: Seed, restore: boolean, passkeyWalletName?: string) => Promise<void>;
+  connectWallet: (seed: Seed, restore: boolean, passkeyLabel?: string) => Promise<void>;
   refreshWalletData: (showLoading?: boolean) => Promise<void>;
   fetchUnclaimedDeposits: () => Promise<void>;
   handleLogout: () => Promise<void>;
@@ -212,7 +212,7 @@ export function useBreezSdk(
   // Connection lifecycle
   // ----------------------------------------
 
-  const connectWallet = useCallback(async (seed: Seed, restore: boolean, passkeyWalletName?: string) => {
+  const connectWallet = useCallback(async (seed: Seed, restore: boolean, passkeyLabel?: string) => {
     let connectedSdk: BreezSdk | undefined;
     try {
       logger.info(LogCategory.SDK, 'Initiating wallet connection', { restore });
@@ -247,8 +247,8 @@ export function useBreezSdk(
       logger.authSuccess(seed.type);
       logger.info(LogCategory.SDK, 'Wallet connected successfully');
 
-      if (passkeyWalletName != null) {
-        setPasskeyMode(passkeyWalletName);
+      if (passkeyLabel != null) {
+        setPasskeyMode(passkeyLabel);
       } else if (seed.type === 'mnemonic') {
         saveMnemonic(seed.mnemonic);
       }
@@ -376,7 +376,7 @@ export function useBreezSdk(
         try {
           setIsLoading(true);
           const wallet = await getWallet();
-          await connectWallet(wallet.seed, false, wallet.name);
+          await connectWallet(wallet.seed, false, wallet.label);
         } catch (e) {
           logger.error(LogCategory.SDK, 'Failed to reconnect with passkey', { error: formatError(e) });
           setError('Failed to authenticate with passkey. Please try again.');
