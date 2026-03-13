@@ -5,11 +5,11 @@ import LoadingSpinner from '../components/LoadingSpinner';
 import PageLayout from '../components/layout/PageLayout';
 import { AlertCard } from '../components/AlertCard';
 import { UploadIcon, CheckIcon, FingerprintIcon } from '../components/Icons';
-import { getWallet, listWalletNames, storeWalletName } from '@/services/passkeyService';
+import { getWallet, listLabels, storeLabel } from '@/services/passkeyService';
 import { logger, LogCategory } from '@/services/logger';
 
 interface PasskeyPageProps {
-  onWalletRestored: (seed: Seed, walletName: string) => void;
+  onWalletRestored: (seed: Seed, label: string) => void;
   onBack: () => void;
 }
 
@@ -20,25 +20,25 @@ const PasskeyPage: React.FC<PasskeyPageProps> = ({
   const [hasAcknowledged, setHasAcknowledged] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [isConnecting, setIsConnecting] = useState(false);
-  const [walletNames, setWalletNames] = useState<string[]>([]);
-  const [selectedWalletName, setSelectedWalletName] = useState<string | null>(null);
+  const [labels, setLabels] = useState<string[]>([]);
+  const [selectedLabel, setSelectedLabel] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [manualWalletName, setManualWalletName] = useState('');
+  const [manualLabel, setManualLabel] = useState('');
   const [showManualInput, setShowManualInput] = useState(false);
 
-  // Fetch wallet names after acknowledgment
+  // Fetch labels after acknowledgment
   useEffect(() => {
     if (!hasAcknowledged) return;
     const autoCreate = async () => {
       setIsConnecting(true);
       try {
         const w = await getWallet();
-        storeWalletName(w.name).catch((e) =>
-          logger.warn(LogCategory.AUTH, 'Failed to store wallet name', {
+        storeLabel(w.label).catch((e) =>
+          logger.warn(LogCategory.AUTH, 'Failed to store label', {
             error: e instanceof Error ? e.message : String(e),
           }),
         );
-        onWalletRestored(w.seed, w.name);
+        onWalletRestored(w.seed, w.label);
       } catch (e) {
         setError('Failed to set up wallet');
         logger.error(LogCategory.AUTH, 'Auto-create wallet failed', {
@@ -48,13 +48,13 @@ const PasskeyPage: React.FC<PasskeyPageProps> = ({
       }
     };
 
-    const fetchWalletNames = async () => {
+    const fetchLabels = async () => {
       setIsLoading(true);
       try {
-        const names = await listWalletNames();
-        setWalletNames(names);
+        const labels = await listLabels();
+        setLabels(labels);
 
-        if (names.length === 0) {
+        if (labels.length === 0) {
           // No wallets — auto-create default
           setIsLoading(false);
           await autoCreate();
@@ -62,11 +62,11 @@ const PasskeyPage: React.FC<PasskeyPageProps> = ({
         }
 
         // Pre-select "Default" if present, otherwise first
-        const defaultIdx = names.indexOf('Default');
-        setSelectedWalletName(defaultIdx !== -1 ? names[defaultIdx] : names[0]);
+        const defaultIdx = labels.indexOf('Default');
+        setSelectedLabel(defaultIdx !== -1 ? labels[defaultIdx] : labels[0]);
       } catch (e) {
-        setError('Failed to discover wallets');
-        logger.error(LogCategory.AUTH, 'Failed to list wallet names', {
+        setError('Failed to discover labels');
+        logger.error(LogCategory.AUTH, 'Failed to list labels', {
           error: e instanceof Error ? e.message : String(e),
         });
       } finally {
@@ -74,28 +74,28 @@ const PasskeyPage: React.FC<PasskeyPageProps> = ({
       }
     };
 
-    fetchWalletNames();
+    fetchLabels();
   }, [hasAcknowledged, onWalletRestored]);
 
   const handleConnect = async () => {
-    const manualName = manualWalletName.trim();
-    const nameToUse = manualName || selectedWalletName;
-    if (!nameToUse) return;
+    const label = manualLabel.trim();
+    const labelToUse = label || selectedLabel;
+    if (!labelToUse) return;
 
     setIsConnecting(true);
     setError(null);
 
     try {
-      if (manualName) {
-        storeWalletName(nameToUse).catch((e) =>
+      if (label) {
+        storeLabel(labelToUse).catch((e) =>
           logger.warn(LogCategory.AUTH, 'Failed to store wallet name', {
             error: e instanceof Error ? e.message : String(e),
           }),
         );
       }
-      const w = await getWallet(nameToUse);
+      const w = await getWallet(labelToUse);
       logger.info(LogCategory.AUTH, 'Passkey wallet derived');
-      onWalletRestored(w.seed, w.name);
+      onWalletRestored(w.seed, w.label);
     } catch (e) {
       setError('Failed to connect');
       logger.error(LogCategory.AUTH, 'Passkey wallet restore failed', {
@@ -148,7 +148,7 @@ const PasskeyPage: React.FC<PasskeyPageProps> = ({
     return (
       <PageLayout onBack={onBack} footer={<div />} title="Passkey">
         <div className="flex flex-col items-center justify-center h-full">
-          <LoadingSpinner text="Discovering wallets..." />
+          <LoadingSpinner text="Discovering labels..." />
         </div>
       </PageLayout>
     );
@@ -165,7 +165,7 @@ const PasskeyPage: React.FC<PasskeyPageProps> = ({
   }
 
   // 1+ wallets — unified selection list + create option
-  const canConnect = !!(manualWalletName.trim() || selectedWalletName);
+  const canConnect = !!(manualLabel.trim() || selectedLabel);
   const footer = (
     <div className="max-w-xl mx-auto space-y-3">
       <PrimaryButton
@@ -192,21 +192,21 @@ const PasskeyPage: React.FC<PasskeyPageProps> = ({
 
         <div className="text-center mb-4">
           <h2 className="text-xl font-display font-bold text-spark-text-primary mb-2">
-            Select Wallet
+            Select Label
           </h2>
         </div>
 
         <div className="space-y-2">
-          {walletNames.map((name) => (
+          {labels.map((label) => (
             <button
-              key={name}
+              key={label}
               onClick={() => {
-                setSelectedWalletName(name);
-                setManualWalletName('');
+                setSelectedLabel(label);
+                setManualLabel('');
               }}
               className={`
                 w-full p-4 rounded-2xl border text-left transition-all
-                ${selectedWalletName === name && !manualWalletName.trim()
+                ${selectedLabel === label && !manualLabel.trim()
                   ? 'bg-spark-primary/10 border-spark-primary'
                   : 'bg-spark-dark border-spark-border hover:border-spark-border-light'
                 }
@@ -214,10 +214,10 @@ const PasskeyPage: React.FC<PasskeyPageProps> = ({
             >
               <div className="flex items-center justify-between">
                 <span className="font-display font-medium text-spark-text-primary">
-                  {name}
+                  {label}
                 </span>
-                <div className={`w-6 h-6 rounded-full flex items-center justify-center ${selectedWalletName === name && !manualWalletName.trim() ? 'bg-spark-primary' : 'bg-transparent'}`}>
-                  {selectedWalletName === name && !manualWalletName.trim() && (
+                <div className={`w-6 h-6 rounded-full flex items-center justify-center ${selectedLabel === label && !manualLabel.trim() ? 'bg-spark-primary' : 'bg-transparent'}`}>
+                  {selectedLabel === label && !manualLabel.trim() && (
                     <CheckIcon size="sm" className="text-white" />
                   )}
                 </div>
@@ -225,7 +225,7 @@ const PasskeyPage: React.FC<PasskeyPageProps> = ({
             </button>
           ))}
 
-          {/* Create new wallet */}
+          {/* Create new label */}
           {!showManualInput ? (
             <button
               type="button"
@@ -233,14 +233,14 @@ const PasskeyPage: React.FC<PasskeyPageProps> = ({
               className="w-full p-4 rounded-2xl border bg-spark-dark border-spark-border hover:border-spark-border-light text-left transition-all"
             >
               <span className="text-sm font-medium text-spark-text-secondary">
-                Create a new wallet...
+                Create a new label...
               </span>
             </button>
           ) : (
             <div
               className={`
                 w-full p-4 rounded-2xl border transition-all
-                ${manualWalletName.trim()
+                ${manualLabel.trim()
                   ? 'bg-spark-primary/10 border-spark-primary'
                   : 'bg-spark-dark border-spark-border'
                 }
@@ -248,18 +248,18 @@ const PasskeyPage: React.FC<PasskeyPageProps> = ({
             >
               <div className="flex items-center justify-between mb-2">
                 <span className="text-sm font-medium text-spark-text-secondary">
-                  Create a new wallet
+                  Create a new label
                 </span>
-                <div className={`w-6 h-6 rounded-full flex items-center justify-center ${manualWalletName.trim() ? 'bg-spark-primary' : 'bg-transparent'}`}>
-                  {manualWalletName.trim() && (
+                <div className={`w-6 h-6 rounded-full flex items-center justify-center ${manualLabel.trim() ? 'bg-spark-primary' : 'bg-transparent'}`}>
+                  {manualLabel.trim() && (
                     <CheckIcon size="sm" className="text-white" />
                   )}
                 </div>
               </div>
               <input
                 type="text"
-                value={manualWalletName}
-                onChange={(e) => setManualWalletName(e.target.value)}
+                value={manualLabel}
+                onChange={(e) => setManualLabel(e.target.value)}
                 placeholder="Wallet name"
                 className="w-full bg-spark-surface border border-spark-border rounded-xl px-3 py-2 text-spark-text-primary placeholder:text-spark-text-muted focus:outline-none focus:ring-2 focus:ring-spark-primary/50 focus:border-spark-primary text-sm"
                 autoFocus

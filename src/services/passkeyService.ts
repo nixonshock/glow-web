@@ -13,7 +13,7 @@ import { passkeyPrfProvider } from './passkeyPrfProvider';
 import { logger, LogCategory } from './logger';
 
 // Storage key — presence signals passkey mode
-const PASSKEY_WALLET_NAME_KEY = 'passkeyWalletName';
+const PASSKEY_LABEL_KEY = 'passkeyLabel';
 
 // Singleton Passkey instance
 let passkeyInstance: Passkey | null = null;
@@ -60,14 +60,14 @@ export async function isPrfAvailable(): Promise<boolean> {
  * Passkey mode is signalled by a stored wallet name.
  */
 export function isPasskeyMode(): boolean {
-  return localStorage.getItem(PASSKEY_WALLET_NAME_KEY) !== null;
+  return localStorage.getItem(PASSKEY_LABEL_KEY) !== null;
 }
 
 /**
  * Set passkey mode by storing the wallet name.
  */
-export function setPasskeyMode(walletName?: string): void {
-  localStorage.setItem(PASSKEY_WALLET_NAME_KEY, walletName ?? 'Default');
+export function setPasskeyMode(label?: string): void {
+  localStorage.setItem(PASSKEY_LABEL_KEY, label ?? 'Default');
 }
 
 /**
@@ -76,43 +76,43 @@ export function setPasskeyMode(walletName?: string): void {
  * still exists on the device and should be reused on next login.
  */
 export function clearPasskeyMode(): void {
-  localStorage.removeItem(PASSKEY_WALLET_NAME_KEY);
+  localStorage.removeItem(PASSKEY_LABEL_KEY);
 }
 
 /**
- * List available wallet names from nostr relays.
+ * List available labels from nostr relays.
  */
-export async function listWalletNames(): Promise<string[]> {
-  logger.info(LogCategory.AUTH, 'Listing wallet names from nostr relays');
+export async function listLabels(): Promise<string[]> {
+  logger.info(LogCategory.AUTH, 'Listing labels from nostr relays');
   const passkey = getOrCreatePasskey();
-  return await passkey.listWalletNames();
+  return await passkey.listLabels();
 }
 
 /**
- * Store a wallet name to nostr relays so it can be discovered later.
+ * Store a label to nostr relays so it can be discovered later.
  */
-export async function storeWalletName(walletName: string): Promise<void> {
-  logger.info(LogCategory.AUTH, 'Storing wallet name to nostr relays');
+export async function storeLabel(label: string): Promise<void> {
+  logger.info(LogCategory.AUTH, 'Storing label to nostr relays');
   const passkey = getOrCreatePasskey();
-  await passkey.storeWalletName(walletName);
+  await passkey.storeLabel(label);
 }
 
 /**
  * Derive a Wallet using passkey authentication.
  *
- * Falls back to saved wallet name from localStorage when no name arg provided.
+ * Falls back to saved label from localStorage when no name arg provided.
  *
- * @param walletName - Optional wallet name. If omitted, uses saved name or SDK default.
- * @returns The derived Wallet object containing seed and name.
+ * @param label - Optional label. If omitted, uses saved name or SDK default.
+ * @returns The derived Wallet object containing seed and label.
  */
-export async function getWallet(walletName?: string): Promise<Wallet> {
-  const effectiveName = walletName ?? localStorage.getItem(PASSKEY_WALLET_NAME_KEY) ?? undefined;
+export async function getWallet(label?: string): Promise<Wallet> {
+  const effectiveLabel = label ?? localStorage.getItem(PASSKEY_LABEL_KEY) ?? undefined;
 
   logger.info(LogCategory.AUTH, 'Deriving wallet via passkey');
 
   const passkey = getOrCreatePasskey();
   try {
-    const wallet = await passkey.getWallet(effectiveName);
+    const wallet = await passkey.getWallet(effectiveLabel);
     logger.info(LogCategory.AUTH, 'Passkey wallet derived successfully');
     return wallet;
   } catch (e) {
