@@ -384,6 +384,7 @@ export function useBreezSdk(
           await connectWallet(wallet.seed, false, wallet.label);
         } catch (e) {
           logger.error(LogCategory.SDK, 'Failed to reconnect with passkey', { error: formatError(e) });
+          clearPasskeyMode();
           setError('Failed to authenticate with passkey. Please try again.');
           setIsLoading(false);
         }
