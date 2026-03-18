@@ -1,8 +1,7 @@
-import React, { useState, useCallback } from 'react';
-import { WarningIcon, EyeIcon, FingerprintIcon } from '../components/Icons';
+import React, { useEffect, useState } from 'react';
+import { WarningIcon, SpinnerIcon, EyeIcon, FingerprintIcon } from '../components/Icons';
 import SlideInPage from '../components/layout/SlideInPage';
-import { isPasskeyMode } from '@/services/passkeyService';
-import { unsealSession } from '@/services/session';
+import { isPasskeyMode, getWallet } from '@/services/passkeyService';
 import { logger, LogCategory } from '@/services/logger';
 
 interface BackupPageProps {
@@ -11,33 +10,39 @@ interface BackupPageProps {
 
 const BackupPage: React.FC<BackupPageProps> = ({ onBack }) => {
   const [mnemonic, setMnemonic] = useState<string | null>(null);
-  const [isRevealed, setIsRevealed] = useState(false);
   const [copied, setCopied] = useState(false);
-  const [hasSession, setHasSession] = useState(true);
+  const [isRevealed, setIsRevealed] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   const isPasskey = isPasskeyMode();
 
-  const handleReveal = useCallback(async () => {
+  useEffect(() => {
+    if (!isPasskey) {
+      setMnemonic(localStorage.getItem('walletMnemonic'));
+    }
+  }, [isPasskey]);
+
+  const handleRevealPasskey = async () => {
+    setIsLoading(true);
+    setError(null);
     try {
-      const phrase = await unsealSession();
-      if (phrase) {
-        setMnemonic(phrase);
+      const w = await getWallet();
+      if (w.seed.type === 'mnemonic' && w.seed.mnemonic) {
+        setMnemonic(w.seed.mnemonic);
         setIsRevealed(true);
       } else {
-        setHasSession(false);
+        setError('Could not derive recovery phrase');
       }
     } catch (e) {
-      logger.error(LogCategory.AUTH, 'Failed to unseal session for backup', {
+      logger.error(LogCategory.AUTH, 'Failed to derive mnemonic from passkey', {
         error: e instanceof Error ? e.message : String(e),
       });
-      setHasSession(false);
+      setError(e instanceof Error ? e.message : 'Failed to authenticate');
+    } finally {
+      setIsLoading(false);
     }
-  }, []);
-
-  const handleHide = useCallback(() => {
-    setIsRevealed(false);
-    setMnemonic(null);
-  }, []);
+  };
 
   const handleCopy = async () => {
     if (!mnemonic) return;
@@ -49,6 +54,13 @@ const BackupPage: React.FC<BackupPageProps> = ({ onBack }) => {
       logger.warn(LogCategory.UI, 'Failed to copy mnemonic to clipboard', {
         error: e instanceof Error ? e.message : String(e),
       });
+    }
+  };
+
+  const handleHide = () => {
+    setIsRevealed(false);
+    if (isPasskey) {
+      setMnemonic(null);
     }
   };
 
@@ -75,10 +87,33 @@ const BackupPage: React.FC<BackupPageProps> = ({ onBack }) => {
             </div>
           )}
 
-          {/* Reveal button */}
-          {hasSession && !isRevealed && (
+          {/* Reveal button — passkey mode */}
+          {isPasskey && !isRevealed && !mnemonic && (
             <button
-              onClick={handleReveal}
+              onClick={handleRevealPasskey}
+              disabled={isLoading}
+              className="w-full bg-spark-dark border border-spark-border rounded-2xl p-8 flex flex-col items-center gap-4 hover:border-spark-border-light transition-colors disabled:opacity-50"
+            >
+              <div className="w-16 h-16 rounded-2xl bg-spark-primary/20 flex items-center justify-center">
+                {isLoading ? (
+                  <SpinnerIcon size="xl" className="text-spark-primary" />
+                ) : (
+                  <EyeIcon size="xl" className="text-spark-primary" />
+                )}
+              </div>
+              <span className="font-display font-semibold text-spark-text-primary">
+                {isLoading ? 'Authenticating...' : 'Tap to reveal phrase'}
+              </span>
+              <span className="text-sm text-spark-text-muted">
+                {isLoading ? 'Complete passkey authentication' : 'Requires passkey authentication'}
+              </span>
+            </button>
+          )}
+
+          {/* Reveal button — mnemonic mode */}
+          {!isPasskey && !isRevealed && mnemonic && (
+            <button
+              onClick={() => setIsRevealed(true)}
               className="w-full bg-spark-dark border border-spark-border rounded-2xl p-8 flex flex-col items-center gap-4 hover:border-spark-border-light transition-colors"
             >
               <div className="w-16 h-16 rounded-2xl bg-spark-primary/20 flex items-center justify-center">
@@ -89,7 +124,14 @@ const BackupPage: React.FC<BackupPageProps> = ({ onBack }) => {
             </button>
           )}
 
-          {/* Mnemonic word grid */}
+          {/* Error message (passkey only) */}
+          {error && (
+            <div className="bg-spark-error/10 border border-spark-error/30 rounded-xl p-4 text-center">
+              <p className="text-spark-error text-sm">{error}</p>
+            </div>
+          )}
+
+          {/* Mnemonic word grid (shared) */}
           {isRevealed && mnemonic && (
             <div className="bg-spark-dark border border-spark-border rounded-2xl p-4 space-y-4">
               <div className="flex items-center justify-between">
@@ -104,12 +146,12 @@ const BackupPage: React.FC<BackupPageProps> = ({ onBack }) => {
                   <button
                     onClick={handleCopy}
                     className={`
-                    px-3 py-1.5 text-sm font-medium rounded-lg transition-all
-                    ${copied
-                      ? 'bg-spark-success/20 text-spark-success border border-spark-success/30'
-                      : 'bg-spark-primary text-white hover:bg-spark-primary-light'
-                    }
-                  `}
+                      px-3 py-1.5 text-sm font-medium rounded-lg transition-all
+                      ${copied
+                        ? 'bg-spark-success/20 text-spark-success border border-spark-success/30'
+                        : 'bg-spark-primary text-white hover:bg-spark-primary-light'
+                      }
+                    `}
                   >
                     {copied ? 'Copied!' : 'Copy'}
                   </button>
@@ -134,8 +176,8 @@ const BackupPage: React.FC<BackupPageProps> = ({ onBack }) => {
             </div>
           )}
 
-          {/* No backup found */}
-          {!hasSession && (
+          {/* No backup found (mnemonic mode only) */}
+          {!isPasskey && !mnemonic && (
             <div className="bg-spark-dark border border-spark-border rounded-2xl p-8 text-center">
               <div className="w-16 h-16 rounded-2xl bg-spark-error/20 flex items-center justify-center mx-auto mb-4">
                 <WarningIcon size="xl" className="text-spark-error" />

@@ -26,7 +26,7 @@ import {
   releasePasskey,
   getWallet,
 } from '../services/passkeyService';
-import { sealSession, clearSession } from '../services/session';
+
 
 // ============================================
 // SDK logging (initialized once)
@@ -248,9 +248,6 @@ export function useBreezSdk(
       logger.authSuccess(seed.type);
       logger.info(LogCategory.SDK, 'Wallet connected successfully');
 
-      if (seed.type === 'mnemonic') {
-        await sealSession(seed.mnemonic);
-      }
       if (passkeyLabel != null) {
         setPasskeyMode(passkeyLabel);
       } else if (seed.type === 'mnemonic') {
@@ -312,7 +309,6 @@ export function useBreezSdk(
 
     // Always reset all state — even if disconnect threw
     setSdk(null);
-    clearSession();
     clearMnemonic();
     clearPasskeyMode();
     releasePasskey();
