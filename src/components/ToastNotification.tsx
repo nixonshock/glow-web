@@ -3,10 +3,16 @@ import { CheckIcon, CloseIcon, ExclamationIcon, InfoCircleIcon } from './Icons';
 
 export type ToastType = 'success' | 'error' | 'info' | 'warning';
 
+interface ToastAction {
+  label: string;
+  onClick: () => void;
+}
+
 interface ToastNotificationProps {
   type: ToastType;
   message: string;
   detail?: string;
+  action?: ToastAction;
   onClose: () => void;
   autoClose?: boolean;
   duration?: number;
@@ -16,10 +22,12 @@ const ToastNotification: React.FC<ToastNotificationProps> = ({
   type,
   message,
   detail,
+  action,
   onClose,
   autoClose = true,
-  duration = 4000
+  duration: durationProp,
 }) => {
+  const duration = durationProp ?? (action ? 6000 : 4000);
   const [isVisible, setIsVisible] = useState(false);
   const [progress, setProgress] = useState(100);
 
@@ -102,6 +110,22 @@ const ToastNotification: React.FC<ToastNotificationProps> = ({
               <p className="text-xs opacity-90 mt-0.5 line-clamp-1">{detail}</p>
             )}
           </div>
+
+          {/* Action button */}
+          {action && (
+            <button
+              onClick={() => {
+                setIsVisible(false);
+                setTimeout(() => {
+                  onClose();
+                  action.onClick();
+                }, 300);
+              }}
+              className="flex-shrink-0 px-3 py-1 text-xs font-semibold bg-white/20 hover:bg-white/30 rounded-full transition-colors"
+            >
+              {action.label}
+            </button>
+          )}
 
           {/* Close button */}
           <button

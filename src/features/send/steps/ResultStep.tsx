@@ -1,7 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { PrimaryButton, ErrorMessageBox } from '../../../components/ui';
 import { CloseIcon } from '../../../components/Icons';
-import SaveContactPrompt from '../components/SaveContactPrompt';
 
 // Star positions around the logo (smaller scale for in-dialog)
 const STARS = [
@@ -21,16 +20,11 @@ export interface ResultStepProps {
   onClose: () => void;
   /** Operation type to customize messaging (default: 'payment') */
   operationType?: 'payment' | 'auth';
-  /** Lightning address to offer saving as contact */
-  lightningAddress?: string;
-  /** Called when user saves a contact */
-  onSaveContact?: (name: string, address: string) => Promise<void>;
 }
 
-const ResultStep: React.FC<ResultStepProps> = ({ result, error, onClose, operationType = 'payment', lightningAddress, onSaveContact }) => {
+const ResultStep: React.FC<ResultStepProps> = ({ result, error, onClose, operationType = 'payment' }) => {
   const isSuccess = result === 'success';
   const [starsAnimating, setStarsAnimating] = useState(false);
-  const [contactSaved, setContactSaved] = useState(false);
 
   useEffect(() => {
     if (isSuccess) {
@@ -151,18 +145,6 @@ const ResultStep: React.FC<ResultStepProps> = ({ result, error, onClose, operati
       <PrimaryButton onClick={onClose} className="min-w-[200px]">
         Done
       </PrimaryButton>
-
-      {/* Save to contacts prompt */}
-      {lightningAddress && onSaveContact && !contactSaved && (
-        <SaveContactPrompt
-          lightningAddress={lightningAddress}
-          onSaved={async (name) => {
-            await onSaveContact(name, lightningAddress);
-            setContactSaved(true);
-          }}
-          onDismiss={() => setContactSaved(true)}
-        />
-      )}
     </div>
   );
 };

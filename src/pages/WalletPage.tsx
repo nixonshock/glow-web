@@ -1,5 +1,6 @@
-import React, { useState, useRef, useCallback, useEffect } from 'react';
+import React, { useState, useRef, useCallback } from 'react';
 import { useWallet } from '../contexts/WalletContext';
+import { useToast } from '../contexts/ToastContext';
 import { logger, LogCategory } from '@/services/logger';
 import CollapsingWalletHeader from '../components/CollapsingWalletHeader';
 import SideMenu from '../components/SideMenu';
@@ -12,6 +13,7 @@ import ReceivePaymentDialog from '../features/receive/ReceivePaymentDialog';
 import QrScannerDialog from '../components/QrScannerDialog';
 import PaymentDetailsDialog from '../components/PaymentDetailsDialog';
 import UnclaimedDepositDetailsPage from './UnclaimedDepositDetailsPage';
+import SaveContactDialog from '../features/send/components/SaveContactDialog';
 
 interface WalletPageProps {
   walletInfo: GetInfoResponse | null;
@@ -28,11 +30,8 @@ interface WalletPageProps {
   onOpenGetRefund: (source?: 'menu' | 'icon') => void;
   onOpenSettings: () => void;
   onOpenBackup: () => void;
-  onOpenContacts: () => void;
   onOpenBuyBitcoin: () => void;
   onDepositChanged?: () => void;
-  sendToContactAddress?: string | null;
-  onClearSendToContact?: () => void;
 }
 
 const WalletPage: React.FC<WalletPageProps> = ({
@@ -48,13 +47,11 @@ const WalletPage: React.FC<WalletPageProps> = ({
   onOpenGetRefund,
   onOpenSettings,
   onOpenBackup,
-  onOpenContacts,
   onOpenBuyBitcoin,
   onDepositChanged,
-  sendToContactAddress,
-  onClearSendToContact
 }) => {
   const wallet = useWallet();
+  const { showToast } = useToast();
   const [scrollProgress, setScrollProgress] = useState<number>(0);
   const [isSendDialogOpen, setIsSendDialogOpen] = useState(false);
   const [isReceiveDialogOpen, setIsReceiveDialogOpen] = useState(false);
@@ -64,6 +61,7 @@ const WalletPage: React.FC<WalletPageProps> = ({
   const [selectedDeposit, setSelectedDeposit] = useState<DepositInfo | null>(null);
   const [paymentInput, setPaymentInput] = useState<string | null>(null);
   const [isMenuOpen, setIsMenuOpen] = useState(false);
+  const [saveContactAddress, setSaveContactAddress] = useState<string | null>(null);
 
   const transactionsContainerRef = useRef<HTMLDivElement>(null);
 
@@ -71,15 +69,6 @@ const WalletPage: React.FC<WalletPageProps> = ({
   const dialogStateRef = useRef({ isSendDialogOpen, isReceiveDialogOpen, selectedPayment, selectedDeposit });
   dialogStateRef.current = { isSendDialogOpen, isReceiveDialogOpen, selectedPayment, selectedDeposit };
   const collapseThreshold = 100;
-
-  // Auto-open send dialog when navigating from contacts
-  useEffect(() => {
-    if (sendToContactAddress) {
-      setPaymentInput(sendToContactAddress);
-      setIsSendDialogOpen(true);
-      onClearSendToContact?.();
-    }
-  }, [sendToContactAddress, onClearSendToContact]);
 
   const handleScroll = useCallback(() => {
     if (transactionsContainerRef.current) {
@@ -125,6 +114,17 @@ const WalletPage: React.FC<WalletPageProps> = ({
     onDepositChanged?.();
     await refreshWalletData(false);
   }, [onDepositChanged, refreshWalletData]);
+
+  const handleSuccessfulSend = useCallback((lightningAddress?: string) => {
+    if (lightningAddress) {
+      setTimeout(() => {
+        showToast('info', 'Save as contact?', lightningAddress, {
+          label: 'Save',
+          onClick: () => setSaveContactAddress(lightningAddress),
+        });
+      }, 500);
+    }
+  }, [showToast]);
 
   const handleSendDialogClose = useCallback(() => {
     setIsSendDialogOpen(false);
@@ -214,6 +214,7 @@ const WalletPage: React.FC<WalletPageProps> = ({
         onClose={handleSendDialogClose}
         initialRawInput={paymentInput}
         onScanQr={handleScanFromSendDialog}
+        onSuccessfulSend={handleSuccessfulSend}
       />
 
       {/* Receive Payment Dialog - always mounted for instant response */}
@@ -285,6 +286,15 @@ const WalletPage: React.FC<WalletPageProps> = ({
         </button>
       </div>
 
+      {/* Save Contact Dialog */}
+      {saveContactAddress && (
+        <SaveContactDialog
+          isOpen={!!saveContactAddress}
+          lightningAddress={saveContactAddress}
+          onClose={() => setSaveContactAddress(null)}
+        />
+      )}
+
       {/* Side Menu */}
       <SideMenu
         isOpen={isMenuOpen}
@@ -292,7 +302,6 @@ const WalletPage: React.FC<WalletPageProps> = ({
         onLogout={onLogout}
         onOpenSettings={onOpenSettings}
         onOpenBackup={onOpenBackup}
-        onOpenContacts={onOpenContacts}
         onOpenRefund={() => onOpenGetRefund('menu')}
         hasRejectedDeposits={hasRejectedDeposits}
       />

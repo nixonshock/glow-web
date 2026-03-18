@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { DialogHeader, BottomSheetContainer, BottomSheetCard } from '../../components/ui';
 import { useWallet } from '../../contexts/WalletContext';
 import { useContactsContext } from '../../contexts/ContactsContext';
@@ -12,6 +12,7 @@ import LnurlAuthWorkflow from './workflows/LnurlAuthWorkflow';
 import AmountStep from './steps/AmountStep';
 import ProcessingStep from './steps/ProcessingStep';
 import ResultStep from './steps/ResultStep';
+import ContactsSubView from './components/ContactsSubView';
 import { PrepareLnurlPayRequest } from '@breeztech/breez-sdk-spark';
 import { logger, LogCategory } from '@/services/logger';
 import { formatError } from '@/utils/formatError';
@@ -24,17 +25,20 @@ interface SendPaymentDialogProps {
   onClose: () => void;
   initialRawInput?: string | null;
   onScanQr?: () => void;
+  onSuccessfulSend?: (lightningAddress?: string) => void;
 }
 
-const SendPaymentDialog: React.FC<SendPaymentDialogProps> = ({ isOpen, onClose, initialRawInput, onScanQr }) => {
+const SendPaymentDialog: React.FC<SendPaymentDialogProps> = ({ isOpen, onClose, initialRawInput, onScanQr, onSuccessfulSend }) => {
   const wallet = useWallet();
   const send = useSendPayment();
-  const { findContactByAddress, addContact } = useContactsContext();
+  const { findContactByAddress } = useContactsContext();
+  const [showContactsView, setShowContactsView] = useState(false);
 
   // Reset state when dialog opens, or process initial data
   useEffect(() => {
     if (isOpen) {
       send.reset();
+      setShowContactsView(false);
       if (initialRawInput) {
         void (async () => {
           try {
@@ -50,14 +54,7 @@ const SendPaymentDialog: React.FC<SendPaymentDialogProps> = ({ isOpen, onClose, 
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isOpen, initialRawInput]);
 
-  const dialogTitle = send.currentStep === 'input'
-    ? 'Send'
-    : getPaymentMethodName(send.paymentInput);
-
-  const lnurlPayDetails = getLnurlPayRequestDetails(send.paymentInput);
-  const lnurlAuthDetails = getLnurlAuthRequestDetails(send.paymentInput);
-
-  // Extract lightning address for save-to-contacts prompt
+  // Detect successful send to non-contact lightning address for save prompt
   const lightningAddressForSave = useMemo(() => {
     if (send.paymentResult !== 'success') return undefined;
     if (send.paymentInput?.parsedInput.type !== 'lightningAddress') return undefined;
@@ -66,105 +63,130 @@ const SendPaymentDialog: React.FC<SendPaymentDialogProps> = ({ isOpen, onClose, 
     return address;
   }, [send.paymentResult, send.paymentInput, findContactByAddress]);
 
+  const handleClose = () => {
+    if (lightningAddressForSave) {
+      onSuccessfulSend?.(lightningAddressForSave);
+    }
+    onClose();
+  };
+
+  const dialogTitle = send.currentStep === 'input'
+    ? 'Send'
+    : getPaymentMethodName(send.paymentInput);
+
+  const lnurlPayDetails = getLnurlPayRequestDetails(send.paymentInput);
+  const lnurlAuthDetails = getLnurlAuthRequestDetails(send.paymentInput);
+
   return (
-    <BottomSheetContainer isOpen={isOpen} onClose={onClose}>
+    <BottomSheetContainer isOpen={isOpen} onClose={handleClose}>
       <BottomSheetCard>
-        <DialogHeader
-          title={dialogTitle}
-          onClose={onClose}
-          icon={<ArrowUpIcon />}
-        />
-
-        {send.currentStep === 'input' && (
-          <InputStep
-            paymentInput={send.paymentInput?.rawInput || ''}
-            isLoading={send.isLoading}
-            error={send.error}
-            onContinue={(input) => send.processInput(input)}
-            onScanQr={onScanQr}
+        {showContactsView ? (
+          <ContactsSubView
+            onBack={() => setShowContactsView(false)}
+            onSelect={(address) => {
+              setShowContactsView(false);
+              send.processInput(address);
+            }}
           />
-        )}
-
-        {send.currentStep === 'amount' && (
-          <AmountStep
-            paymentInput={send.paymentInput?.rawInput || ''}
-            amount={send.amount}
-            balanceSats={send.balanceSats}
-            isLoading={send.isLoading}
-            error={send.error}
-            onBack={() => send.setCurrentStep('input')}
-            onNext={send.onAmountNext}
-          />
-        )}
-
-        {send.currentStep === 'workflow' && (
+        ) : (
           <>
-            {send.prepareResponse && send.prepareResponse.paymentMethod.type === 'bolt11Invoice' && (
-              <Bolt11Workflow
-                method={send.prepareResponse.paymentMethod}
-                amountSats={send.prepareResponse.amount}
-                onBack={() => send.setCurrentStep('input')}
-                onSend={send.handleSend}
+            <DialogHeader
+              title={dialogTitle}
+              onClose={handleClose}
+              icon={<ArrowUpIcon />}
+            />
+
+            {send.currentStep === 'input' && (
+              <InputStep
+                paymentInput={send.paymentInput?.rawInput || ''}
+                isLoading={send.isLoading}
+                error={send.error}
+                onContinue={(input) => send.processInput(input)}
+                onScanQr={onScanQr}
+                onOpenContacts={() => setShowContactsView(true)}
               />
             )}
-            {send.prepareResponse && send.prepareResponse.paymentMethod.type === 'bitcoinAddress' && (
-              <BitcoinWorkflow
-                method={send.prepareResponse.paymentMethod}
-                amountSats={send.prepareResponse.amount}
-                feesIncluded={send.feesIncluded}
-                onBack={() => send.setCurrentStep('amount')}
-                onSend={send.handleSend}
-              />
-            )}
-            {send.prepareResponse && send.prepareResponse.paymentMethod.type === 'sparkAddress' && (
-              <SparkWorkflow
-                method={send.prepareResponse.paymentMethod}
-                amountSats={send.prepareResponse.amount}
-                feesIncluded={send.feesIncluded}
-                onBack={() => send.setCurrentStep('input')}
-                onSend={send.handleSend}
-              />
-            )}
-            {lnurlPayDetails && (
-              <LnurlWorkflow
-                parsed={lnurlPayDetails}
+
+            {send.currentStep === 'amount' && (
+              <AmountStep
+                paymentInput={send.paymentInput?.rawInput || ''}
+                amount={send.amount}
                 balanceSats={send.balanceSats}
+                isLoading={send.isLoading}
+                error={send.error}
                 onBack={() => send.setCurrentStep('input')}
-                onRun={send.handleRun}
-                onPrepare={async (prepareRequest: PrepareLnurlPayRequest) => {
-                  return await wallet.prepareLnurlPay(prepareRequest);
-                }}
-                onPay={async (prepareResponse) => {
-                  await wallet.lnurlPay({ prepareResponse });
-                }}
+                onNext={send.onAmountNext}
               />
             )}
-            {lnurlAuthDetails && (
-              <LnurlAuthWorkflow
-                parsed={lnurlAuthDetails}
-                onBack={() => send.setCurrentStep('input')}
-                onRun={send.handleRun}
-                onAuth={async (requestData) => {
-                  return await wallet.lnurlAuth(requestData);
-                }}
+
+            {send.currentStep === 'workflow' && (
+              <>
+                {send.prepareResponse && send.prepareResponse.paymentMethod.type === 'bolt11Invoice' && (
+                  <Bolt11Workflow
+                    method={send.prepareResponse.paymentMethod}
+                    amountSats={send.prepareResponse.amount}
+                    onBack={() => send.setCurrentStep('input')}
+                    onSend={send.handleSend}
+                  />
+                )}
+                {send.prepareResponse && send.prepareResponse.paymentMethod.type === 'bitcoinAddress' && (
+                  <BitcoinWorkflow
+                    method={send.prepareResponse.paymentMethod}
+                    amountSats={send.prepareResponse.amount}
+                    feesIncluded={send.feesIncluded}
+                    onBack={() => send.setCurrentStep('amount')}
+                    onSend={send.handleSend}
+                  />
+                )}
+                {send.prepareResponse && send.prepareResponse.paymentMethod.type === 'sparkAddress' && (
+                  <SparkWorkflow
+                    method={send.prepareResponse.paymentMethod}
+                    amountSats={send.prepareResponse.amount}
+                    feesIncluded={send.feesIncluded}
+                    onBack={() => send.setCurrentStep('input')}
+                    onSend={send.handleSend}
+                  />
+                )}
+                {lnurlPayDetails && (
+                  <LnurlWorkflow
+                    parsed={lnurlPayDetails}
+                    balanceSats={send.balanceSats}
+                    onBack={() => send.setCurrentStep('input')}
+                    onRun={send.handleRun}
+                    onPrepare={async (prepareRequest: PrepareLnurlPayRequest) => {
+                      return await wallet.prepareLnurlPay(prepareRequest);
+                    }}
+                    onPay={async (prepareResponse) => {
+                      await wallet.lnurlPay({ prepareResponse });
+                    }}
+                  />
+                )}
+                {lnurlAuthDetails && (
+                  <LnurlAuthWorkflow
+                    parsed={lnurlAuthDetails}
+                    onBack={() => send.setCurrentStep('input')}
+                    onRun={send.handleRun}
+                    onAuth={async (requestData) => {
+                      return await wallet.lnurlAuth(requestData);
+                    }}
+                  />
+                )}
+              </>
+            )}
+
+            {send.currentStep === 'processing' && (
+              <ProcessingStep operationType={send.paymentInput?.parsedInput.type === 'lnurlAuth' ? 'auth' : 'payment'} />
+            )}
+
+            {send.currentStep === 'result' && (
+              <ResultStep
+                result={send.paymentResult === 'success' ? 'success' : 'failure'}
+                error={send.error}
+                onClose={handleClose}
+                operationType={send.paymentInput?.parsedInput.type === 'lnurlAuth' ? 'auth' : 'payment'}
               />
             )}
           </>
-        )}
-
-        {send.currentStep === 'processing' && (
-          <ProcessingStep operationType={send.paymentInput?.parsedInput.type === 'lnurlAuth' ? 'auth' : 'payment'} />
-        )}
-
-        {send.currentStep === 'result' && (
-          <ResultStep
-            result={send.paymentResult === 'success' ? 'success' : 'failure'}
-            error={send.error}
-            onClose={onClose}
-            operationType={send.paymentInput?.parsedInput.type === 'lnurlAuth' ? 'auth' : 'payment'}
-            lightningAddress={lightningAddressForSave}
-            onSaveContact={async (name, address) => { await addContact(name, address); }}
-          />
         )}
       </BottomSheetCard>
     </BottomSheetContainer>
