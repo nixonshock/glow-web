@@ -23,7 +23,6 @@ import {
   isPasskeyMode,
   setPasskeyMode,
   clearPasskeyMode,
-  releasePasskey,
   getWallet,
 } from '../services/passkeyService';
 import { sealSession, clearSession } from '../services/session';
@@ -315,7 +314,6 @@ export function useBreezSdk(
     clearSession();
     clearMnemonic();
     clearPasskeyMode();
-    releasePasskey();
     shownPaymentIdsRef.current.clear();
     setIsConnected(false);
     setIsSyncing(false);
@@ -378,15 +376,26 @@ export function useBreezSdk(
           setIsLoading(false);
         }
       } else if (isPasskeyMode()) {
+        setIsLoading(true);
+        let wallet;
         try {
-          setIsLoading(true);
-          const wallet = await getWallet();
-          await connectWallet(wallet.seed, false, wallet.label);
+          wallet = await getWallet();
         } catch (e) {
-          logger.error(LogCategory.SDK, 'Failed to reconnect with passkey', { error: formatError(e) });
-          clearPasskeyMode();
+          logger.error(LogCategory.AUTH, 'Passkey authentication failed', { error: formatError(e) });
+          if (e instanceof DOMException && e.name === 'NotAllowedError') {
+            clearPasskeyMode();
+          }
           setError('Failed to authenticate with passkey. Please try again.');
           setIsLoading(false);
+        }
+        if (wallet) {
+          try {
+            await connectWallet(wallet.seed, false, wallet.label);
+          } catch (e) {
+            logger.error(LogCategory.SDK, 'Failed to connect after passkey auth', { error: formatError(e) });
+            setError('Failed to connect wallet. Please try again.');
+            setIsLoading(false);
+          }
         }
       } else {
         setIsLoading(false);
