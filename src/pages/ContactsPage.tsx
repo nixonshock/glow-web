@@ -8,9 +8,10 @@ import { FormInput, FormError, PrimaryButton, ConfirmDialog } from '../component
 interface ContactsPageProps {
   onBack: () => void;
   onSendToContact: (address: string) => void;
+  isSyncing?: boolean;
 }
 
-const ContactsPage: React.FC<ContactsPageProps> = ({ onBack, onSendToContact }) => {
+const ContactsPage: React.FC<ContactsPageProps> = ({ onBack, onSendToContact, isSyncing }) => {
   const { contacts, isLoading, addContact, updateContact, deleteContact } = useContactsContext();
   const [searchQuery, setSearchQuery] = useState('');
   const [showAddForm, setShowAddForm] = useState(false);
@@ -208,17 +209,23 @@ const ContactsPage: React.FC<ContactsPageProps> = ({ onBack, onSendToContact }) 
         ) : filteredContacts.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-16 px-6">
             <div className="w-16 h-16 rounded-2xl bg-spark-surface border border-spark-border flex items-center justify-center mb-4">
-              <svg className="w-8 h-8 text-spark-text-muted" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
-              </svg>
+              {isSyncing && !searchQuery ? (
+                <div className="w-8 h-8 border-2 border-spark-primary border-t-transparent rounded-full animate-spin" />
+              ) : (
+                <svg className="w-8 h-8 text-spark-text-muted" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
+                </svg>
+              )}
             </div>
             <h3 className="text-lg font-semibold text-spark-text-primary mb-1">
-              {searchQuery ? 'No matches' : 'No contacts yet'}
+              {searchQuery ? 'No matches' : isSyncing ? 'Syncing contacts...' : 'No contacts yet'}
             </h3>
             <p className="text-spark-text-muted text-sm text-center max-w-xs">
               {searchQuery
                 ? 'Try a different search term.'
-                : 'Add contacts to quickly send payments to your favorite people.'}
+                : isSyncing
+                  ? 'Your contacts will appear once syncing is complete.'
+                  : 'Add contacts to quickly send payments to your favorite people.'}
             </p>
           </div>
         ) : (

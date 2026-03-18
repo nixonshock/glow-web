@@ -1,5 +1,5 @@
 import { useState, useCallback, useEffect, useMemo } from 'react';
-import type { Contact } from '@breeztech/breez-sdk-spark';
+import type { Contact, SdkEvent } from '@breeztech/breez-sdk-spark';
 import { useWallet } from '../contexts/WalletContext';
 import { logger, LogCategory } from '../services/logger';
 import { formatError } from '../utils/formatError';
@@ -30,7 +30,14 @@ export function useContacts(): UseContactsReturn {
   const refreshContacts = useCallback(async () => {
     try {
       const result = await wallet.listContacts({});
-      setContacts(result);
+      setContacts(prev => {
+        if (prev.length === result.length && prev.every((c, i) =>
+          c.id === result[i].id && c.name === result[i].name && c.paymentIdentifier === result[i].paymentIdentifier
+        )) {
+          return prev; // unchanged — keep same reference to avoid downstream re-renders
+        }
+        return result;
+      });
       setError(null);
     } catch (e) {
       logger.error(LogCategory.SDK, 'Failed to list contacts', { error: formatError(e) });
@@ -42,6 +49,30 @@ export function useContacts(): UseContactsReturn {
     setIsLoading(true);
     refreshContacts().finally(() => setIsLoading(false));
   }, [refreshContacts]);
+
+  // Refresh contacts when SDK sync completes (contacts may not be available until first sync)
+  useEffect(() => {
+    let listenerId: string | null = null;
+    (async () => {
+      try {
+        listenerId = await wallet.addEventListener({ onEvent: (event: SdkEvent) => {
+          if (event.type === 'synced') {
+            void refreshContacts();
+          }
+        } });
+      } catch (e) {
+        logger.warn(LogCategory.SDK, 'Failed to attach contacts event listener', {
+          error: e instanceof Error ? e.message : String(e),
+        });
+      }
+    })();
+
+    return () => {
+      if (listenerId) {
+        wallet.removeEventListener(listenerId).catch(() => { });
+      }
+    };
+  }, [wallet, refreshContacts]);
 
   const addressMap = useMemo(() => {
     const map = new Map<string, Contact>();

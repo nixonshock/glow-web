@@ -133,6 +133,7 @@ const AppContent: React.FC = () => {
               setSendToContactAddress(address);
               setCurrentScreen('wallet');
             }}
+            isSyncing={sdk.isSyncing}
           />
         );
 
