@@ -19,7 +19,7 @@ export interface UseSendPaymentReturn {
   balanceSats: number | undefined;
   feesIncluded: boolean;
   // Actions
-  reset: (initialInput?: SendInput | null) => void;
+  reset: () => void;
   processInput: (input?: string | null) => Promise<void>;
   onAmountNext: (amountNum: number, includeFees?: boolean) => Promise<void>;
   handleSend: (options?: SendPaymentOptions) => Promise<void>;
@@ -157,7 +157,7 @@ export function useSendPayment(): UseSendPaymentReturn {
     }
   }, []);
 
-  const reset = useCallback((initialInput?: SendInput | null) => {
+  const reset = useCallback(() => {
     setCurrentStep('input');
     setAmount('');
     setPrepareResponse(null);
@@ -165,7 +165,7 @@ export function useSendPayment(): UseSendPaymentReturn {
     setIsLoading(false);
     setBalanceSats(undefined);
     setFeesIncluded(false);
-    setPaymentInput(initialInput ?? null);
+    setPaymentInput(null);
     setPaymentResult(null);
   }, []);
 

@@ -1,6 +1,7 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useMemo } from 'react';
 import { DialogHeader, BottomSheetContainer, BottomSheetCard } from '../../components/ui';
 import { useWallet } from '../../contexts/WalletContext';
+import { useContactsContext } from '../../contexts/ContactsContext';
 
 import InputStep from './steps/InputStep';
 import Bolt11Workflow from './workflows/Bolt11Workflow';
@@ -11,7 +12,6 @@ import LnurlAuthWorkflow from './workflows/LnurlAuthWorkflow';
 import AmountStep from './steps/AmountStep';
 import ProcessingStep from './steps/ProcessingStep';
 import ResultStep from './steps/ResultStep';
-import { SendInput } from '@/types/domain';
 import { PrepareLnurlPayRequest } from '@breeztech/breez-sdk-spark';
 import { logger, LogCategory } from '@/services/logger';
 import { formatError } from '@/utils/formatError';
@@ -22,22 +22,23 @@ import { getPaymentMethodName, getLnurlPayRequestDetails, getLnurlAuthRequestDet
 interface SendPaymentDialogProps {
   isOpen: boolean;
   onClose: () => void;
-  initialPaymentInput?: SendInput | null;
+  initialRawInput?: string | null;
   onScanQr?: () => void;
 }
 
-const SendPaymentDialog: React.FC<SendPaymentDialogProps> = ({ isOpen, onClose, initialPaymentInput, onScanQr }) => {
+const SendPaymentDialog: React.FC<SendPaymentDialogProps> = ({ isOpen, onClose, initialRawInput, onScanQr }) => {
   const wallet = useWallet();
   const send = useSendPayment();
+  const { findContactByAddress, addContact } = useContactsContext();
 
   // Reset state when dialog opens, or process initial data
   useEffect(() => {
     if (isOpen) {
-      send.reset(initialPaymentInput);
-      if (initialPaymentInput) {
+      send.reset();
+      if (initialRawInput) {
         void (async () => {
           try {
-            await send.processInput(initialPaymentInput.rawInput);
+            await send.processInput(initialRawInput);
           } catch (err) {
             logger.error(LogCategory.PAYMENT, 'Failed to process initial payment input', {
               error: formatError(err),
@@ -47,7 +48,7 @@ const SendPaymentDialog: React.FC<SendPaymentDialogProps> = ({ isOpen, onClose, 
       }
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isOpen, initialPaymentInput]);
+  }, [isOpen, initialRawInput]);
 
   const dialogTitle = send.currentStep === 'input'
     ? 'Send'
@@ -55,6 +56,15 @@ const SendPaymentDialog: React.FC<SendPaymentDialogProps> = ({ isOpen, onClose, 
 
   const lnurlPayDetails = getLnurlPayRequestDetails(send.paymentInput);
   const lnurlAuthDetails = getLnurlAuthRequestDetails(send.paymentInput);
+
+  // Extract lightning address for save-to-contacts prompt
+  const lightningAddressForSave = useMemo(() => {
+    if (send.paymentResult !== 'success') return undefined;
+    if (send.paymentInput?.parsedInput.type !== 'lightningAddress') return undefined;
+    const address = send.paymentInput.rawInput;
+    if (findContactByAddress(address)) return undefined;
+    return address;
+  }, [send.paymentResult, send.paymentInput, findContactByAddress]);
 
   return (
     <BottomSheetContainer isOpen={isOpen} onClose={onClose}>
@@ -152,6 +162,8 @@ const SendPaymentDialog: React.FC<SendPaymentDialogProps> = ({ isOpen, onClose, 
             error={send.error}
             onClose={onClose}
             operationType={send.paymentInput?.parsedInput.type === 'lnurlAuth' ? 'auth' : 'payment'}
+            lightningAddress={lightningAddressForSave}
+            onSaveContact={async (name, address) => { await addContact(name, address); }}
           />
         )}
       </BottomSheetCard>

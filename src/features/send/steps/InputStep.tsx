@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { SimpleAlert } from '../../../components/AlertCard';
 import { PrimaryButton } from '../../../components/ui';
+import ContactPickerSection from '../components/ContactPickerSection';
 import { logger, LogCategory } from '@/services/logger';
 import { ClipboardIcon, QrCodeIcon, SpinnerIcon } from '@/components/Icons';
 
@@ -40,11 +41,18 @@ const InputStep: React.FC<InputStepProps> = ({ paymentInput, isLoading, error, o
       <textarea
         value={localPaymentInput}
         onChange={(e) => setLocalPaymentInput(e.target.value)}
-        placeholder="lnbc... / bc1... / sp1... / user@domain.com"
+        placeholder="lnbc... / bc1... / sp1... / user@domain.com / contact name"
         className="w-full p-4 bg-spark-dark border border-spark-border rounded-xl text-spark-text-primary placeholder-spark-text-muted focus:border-spark-electric focus:ring-2 focus:ring-spark-electric/20 resize-none font-mono text-sm transition-all"
         rows={3}
         disabled={isLoading}
         data-testid="payment-input"
+      />
+
+      {/* Contact suggestions (fixed-height row — no layout shift) */}
+      <ContactPickerSection
+        query={localPaymentInput}
+        onSelect={(c) => onContinue(c.paymentIdentifier)}
+        isLoading={isLoading}
       />
 
       {/* Error */}
@@ -88,6 +96,7 @@ const InputStep: React.FC<InputStepProps> = ({ paymentInput, isLoading, error, o
           </span>
         ) : 'Continue'}
       </PrimaryButton>
+
     </div>
   );
 };

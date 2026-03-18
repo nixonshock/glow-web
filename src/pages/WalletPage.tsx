@@ -1,4 +1,4 @@
-import React, { useState, useRef, useCallback } from 'react';
+import React, { useState, useRef, useCallback, useEffect } from 'react';
 import { useWallet } from '../contexts/WalletContext';
 import { logger, LogCategory } from '@/services/logger';
 import CollapsingWalletHeader from '../components/CollapsingWalletHeader';
@@ -6,7 +6,6 @@ import SideMenu from '../components/SideMenu';
 import TransactionList from '../components/TransactionList';
 import { GetInfoResponse, Payment, Rate, FiatCurrency, DepositInfo } from '@breeztech/breez-sdk-spark';
 import { ArrowUpIcon, QrCodeIcon, ArrowDownIcon } from '../components/Icons';
-import { SendInput } from '@/types/domain';
 import { mergeDepositsWithTransactions, ExtendedPayment, isUnclaimedDepositPayment } from '@/utils/depositHelpers';
 import SendPaymentDialog from '../features/send/SendPaymentDialog';
 import ReceivePaymentDialog from '../features/receive/ReceivePaymentDialog';
@@ -29,8 +28,11 @@ interface WalletPageProps {
   onOpenGetRefund: (source?: 'menu' | 'icon') => void;
   onOpenSettings: () => void;
   onOpenBackup: () => void;
+  onOpenContacts: () => void;
   onOpenBuyBitcoin: () => void;
   onDepositChanged?: () => void;
+  sendToContactAddress?: string | null;
+  onClearSendToContact?: () => void;
 }
 
 const WalletPage: React.FC<WalletPageProps> = ({
@@ -46,8 +48,11 @@ const WalletPage: React.FC<WalletPageProps> = ({
   onOpenGetRefund,
   onOpenSettings,
   onOpenBackup,
+  onOpenContacts,
   onOpenBuyBitcoin,
-  onDepositChanged
+  onDepositChanged,
+  sendToContactAddress,
+  onClearSendToContact
 }) => {
   const wallet = useWallet();
   const [scrollProgress, setScrollProgress] = useState<number>(0);
@@ -57,7 +62,7 @@ const WalletPage: React.FC<WalletPageProps> = ({
   const [scannerOpenedFromSend, setScannerOpenedFromSend] = useState(false);
   const [selectedPayment, setSelectedPayment] = useState<Payment | null>(null);
   const [selectedDeposit, setSelectedDeposit] = useState<DepositInfo | null>(null);
-  const [paymentInput, setPaymentInput] = useState<SendInput | null>(null);
+  const [paymentInput, setPaymentInput] = useState<string | null>(null);
   const [isMenuOpen, setIsMenuOpen] = useState(false);
 
   const transactionsContainerRef = useRef<HTMLDivElement>(null);
@@ -66,6 +71,15 @@ const WalletPage: React.FC<WalletPageProps> = ({
   const dialogStateRef = useRef({ isSendDialogOpen, isReceiveDialogOpen, selectedPayment, selectedDeposit });
   dialogStateRef.current = { isSendDialogOpen, isReceiveDialogOpen, selectedPayment, selectedDeposit };
   const collapseThreshold = 100;
+
+  // Auto-open send dialog when navigating from contacts
+  useEffect(() => {
+    if (sendToContactAddress) {
+      setPaymentInput(sendToContactAddress);
+      setIsSendDialogOpen(true);
+      onClearSendToContact?.();
+    }
+  }, [sendToContactAddress, onClearSendToContact]);
 
   const handleScroll = useCallback(() => {
     if (transactionsContainerRef.current) {
@@ -149,7 +163,7 @@ const WalletPage: React.FC<WalletPageProps> = ({
       });
       setIsQrScannerOpen(false);
       setScannerOpenedFromSend(false);
-      setPaymentInput({ rawInput: data, parsedInput: parseResult });
+      setPaymentInput(data);
       setIsSendDialogOpen(true);
     } catch (error) {
       logger.error(LogCategory.UI, 'Failed to parse QR code', {
@@ -198,7 +212,7 @@ const WalletPage: React.FC<WalletPageProps> = ({
       <SendPaymentDialog
         isOpen={isSendDialogOpen}
         onClose={handleSendDialogClose}
-        initialPaymentInput={paymentInput}
+        initialRawInput={paymentInput}
         onScanQr={handleScanFromSendDialog}
       />
 
@@ -278,6 +292,7 @@ const WalletPage: React.FC<WalletPageProps> = ({
         onLogout={onLogout}
         onOpenSettings={onOpenSettings}
         onOpenBackup={onOpenBackup}
+        onOpenContacts={onOpenContacts}
         onOpenRefund={() => onOpenGetRefund('menu')}
         hasRejectedDeposits={hasRejectedDeposits}
       />

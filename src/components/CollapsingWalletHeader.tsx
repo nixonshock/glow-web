@@ -5,6 +5,10 @@ import { formatWithThinSpaces } from '../utils/formatNumber';
 import { useAnimatedNumber } from '../hooks/useAnimatedNumber';
 import { MenuIcon, AlertTriangleIcon, CurrencyIcon } from './Icons';
 
+// Module-level flag: once the balance count-up has played, skip it on remount
+// (e.g. navigating to Contacts and back). Resets on full page reload.
+let hasPlayedInitialAnimation = false;
+
 interface CollapsingWalletHeaderProps {
   walletInfo: GetInfoResponse | null;
   fiatRates: Rate[];
@@ -87,36 +91,40 @@ const CollapsingWalletHeader: React.FC<CollapsingWalletHeaderProps> = ({
   
   // Track when both balance and fiat are ready to trigger synced animation
   const hasFiatData = fiatCurrencyInfo.length > 0;
-  const [animationReady, setAnimationReady] = useState(false);
-  const hasTriggeredAnimation = useRef(false);
-  
+  const skipAnimation = hasPlayedInitialAnimation;
+  const [animationReady, setAnimationReady] = useState(skipAnimation);
+  const hasTriggeredAnimation = useRef(skipAnimation);
+
   useEffect(() => {
     // Start animation only when BOTH balance and fiat are available
     if (balanceSat > 0 && hasFiatData && !hasTriggeredAnimation.current) {
       hasTriggeredAnimation.current = true;
+      hasPlayedInitialAnimation = true;
       setAnimationReady(true);
     }
   }, [balanceSat, hasFiatData]);
-  
+
   // Timeout fallback: if fiat doesn't load within 2s, animate balance anyway
   useEffect(() => {
     if (balanceSat > 0 && !hasTriggeredAnimation.current) {
       const timeout = setTimeout(() => {
         if (!hasTriggeredAnimation.current) {
           hasTriggeredAnimation.current = true;
+          hasPlayedInitialAnimation = true;
           setAnimationReady(true);
         }
       }, 2000);
       return () => clearTimeout(timeout);
     }
   }, [balanceSat]);
-  
+
   // Only animate from 80% when both are ready; otherwise show full value
+  // On return visits, skip the count-up effect (no initialStartPercent)
   const animatedBalance = useAnimatedNumber(
     animationReady ? balanceSat : 0,
-    { initialStartPercent: 0.8 }
+    skipAnimation ? {} : { initialStartPercent: 0.8 }
   );
-  
+
   // Display: if animation started, use animated value; otherwise use actual balance
   const displayBalance = animationReady ? animatedBalance : balanceSat;
 

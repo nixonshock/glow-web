@@ -17,15 +17,19 @@ import BackupPage from './pages/BackupPage';
 import PasskeyPage from './pages/PasskeyPage';
 import SettingsPage from './pages/SettingsPage';
 import FiatCurrenciesPage from './pages/FiatCurrenciesPage';
+import ContactsPage from './pages/ContactsPage';
+import { ContactsProvider } from './contexts/ContactsContext';
 import { useIOSViewportFix } from './hooks/useIOSViewportFix';
 import type { Seed } from '@breeztech/breez-sdk-spark';
 
-type Screen = 'home' | 'restore' | 'generate' | 'wallet' | 'getRefund' | 'settings' | 'backup' | 'fiatCurrencies' | 'passkey';
+type Screen = 'home' | 'restore' | 'generate' | 'wallet' | 'getRefund' | 'settings' | 'backup' | 'fiatCurrencies' | 'passkey' | 'contacts';
 
 const AppContent: React.FC = () => {
   const [currentScreen, setCurrentScreen] = useState<Screen>('home');
   const [refundAnimationDirection, setRefundAnimationDirection] = useState<'left' | 'up'>('left');
   const [passkeySdkConnected, setPasskeySdkConnected] = useState(false);
+  const [sendToContactAddress, setSendToContactAddress] = useState<string | null>(null);
+  const clearSendToContact = useCallback(() => setSendToContactAddress(null), []);
   const { showToast } = useToast();
 
   useIOSViewportFix();
@@ -121,6 +125,17 @@ const AppContent: React.FC = () => {
           <FiatCurrenciesPage onBack={() => setCurrentScreen('settings')} />
         );
 
+      case 'contacts':
+        return (
+          <ContactsPage
+            onBack={() => setCurrentScreen('wallet')}
+            onSendToContact={(address) => {
+              setSendToContactAddress(address);
+              setCurrentScreen('wallet');
+            }}
+          />
+        );
+
       case 'backup':
         return (
           <BackupPage onBack={() => setCurrentScreen('wallet')} />
@@ -176,7 +191,10 @@ const AppContent: React.FC = () => {
             }}
             onOpenSettings={() => setCurrentScreen('settings')}
             onOpenBackup={() => setCurrentScreen('backup')}
+            onOpenContacts={() => setCurrentScreen('contacts')}
             onOpenBuyBitcoin={sdk.handleBuyBitcoin}
+            sendToContactAddress={sendToContactAddress}
+            onClearSendToContact={clearSendToContact}
             onDepositChanged={sdk.fetchUnclaimedDeposits}
           />
         );
@@ -188,7 +206,13 @@ const AppContent: React.FC = () => {
 
   return (
     <WalletProvider client={sdk.sdk}>
-      {renderCurrentScreen()}
+      {sdk.isConnected ? (
+        <ContactsProvider>
+          {renderCurrentScreen()}
+        </ContactsProvider>
+      ) : (
+        renderCurrentScreen()
+      )}
       {sdk.celebrationAmount !== null && (
         <PaymentReceivedCelebration
           amount={sdk.celebrationAmount}

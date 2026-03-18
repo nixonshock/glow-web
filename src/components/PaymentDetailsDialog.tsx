@@ -4,6 +4,8 @@ import {
   DialogHeader, PaymentInfoCard, PaymentInfoRow,
   CollapsibleCodeField, BottomSheetContainer, BottomSheetCard
 } from './ui';
+import { useContactsContext } from '../contexts/ContactsContext';
+import { getPaymentDescription } from '../utils/paymentDescription';
 import { formatWithSpaces } from '../utils/formatNumber';
 
 interface PaymentDetailsDialogProps {
@@ -13,23 +15,6 @@ interface PaymentDetailsDialogProps {
 
 // Threshold for when to use collapsible chevron
 const LONG_TEXT_THRESHOLD = 35;
-
-// Get the payment title (same logic as TransactionList)
-const getPaymentTitle = (payment: Payment): string => {
-  if (payment.method === 'lightning') {
-    if (payment.details?.type === 'lightning') {
-      if (payment.details.lnurlPayInfo?.lnAddress) {
-        return payment.details.lnurlPayInfo.lnAddress;
-      }
-      return payment.details?.description || 'Lightning Payment';
-    }
-    return 'Lightning Payment';
-  }
-  if (payment.method === 'spark') return 'Spark Transfer';
-  if (payment.method === 'deposit') return 'BTC Transfer';
-  if (payment.method === 'withdraw') return 'BTC Transfer';
-  return 'Payment';
-};
 
 const getDefaultVisibleFields = () => ({
   invoice: false,
@@ -48,6 +33,7 @@ const getDefaultVisibleFields = () => ({
 });
 
 const PaymentDetailsDialog: React.FC<PaymentDetailsDialogProps> = ({ optionalPayment, onClose }) => {
+  const { findContactByAddress } = useContactsContext();
   const [visibleFields, setVisibleFields] = useState<Record<string, boolean>>(getDefaultVisibleFields());
 
   // Reset all expanded fields when a new payment is opened
@@ -86,7 +72,7 @@ const PaymentDetailsDialog: React.FC<PaymentDetailsDialogProps> = ({ optionalPay
   return (
     <BottomSheetContainer isOpen={optionalPayment != null} onClose={onClose}>
       <BottomSheetCard>
-        <DialogHeader title={getPaymentTitle(payment)} onClose={onClose} />
+        <DialogHeader title={getPaymentDescription(payment, findContactByAddress)} onClose={onClose} />
         <div className="space-y-4 overflow-y-auto">
           {/* General Payment Information */}
           <PaymentInfoCard>
