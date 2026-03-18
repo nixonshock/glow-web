@@ -5,8 +5,8 @@ import { formatWithThinSpaces } from '../utils/formatNumber';
 import { useAnimatedNumber } from '../hooks/useAnimatedNumber';
 import { MenuIcon, AlertTriangleIcon, CurrencyIcon } from './Icons';
 
-// Module-level flag: once the balance count-up has played, skip it on remount
-// (e.g. navigating to Contacts and back). Resets on full page reload.
+// Module-level flag: once the balance count-up has played, skip it on remount.
+// Resets on full page reload.
 let hasPlayedInitialAnimation = false;
 
 interface CollapsingWalletHeaderProps {

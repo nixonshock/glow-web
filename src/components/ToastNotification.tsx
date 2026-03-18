@@ -3,7 +3,7 @@ import { CheckIcon, CloseIcon, ExclamationIcon, InfoCircleIcon } from './Icons';
 
 export type ToastType = 'success' | 'error' | 'info' | 'warning';
 
-interface ToastAction {
+export interface ToastAction {
   label: string;
   onClick: () => void;
 }

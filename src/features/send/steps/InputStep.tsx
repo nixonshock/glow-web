@@ -3,7 +3,7 @@ import { SimpleAlert } from '../../../components/AlertCard';
 import { PrimaryButton } from '../../../components/ui';
 import ContactAutocomplete from '../components/ContactAutocomplete';
 import { logger, LogCategory } from '@/services/logger';
-import { ClipboardIcon, QrCodeIcon, SpinnerIcon } from '@/components/Icons';
+import { ClipboardIcon, QrCodeIcon, SpinnerIcon, ContactsIcon } from '@/components/Icons';
 
 export interface InputStepProps {
   paymentInput: string;
@@ -56,7 +56,7 @@ const InputStep: React.FC<InputStepProps> = ({ paymentInput, isLoading, error, o
           query={localPaymentInput}
           isVisible={isInputFocused}
           isLoading={isLoading}
-          onSelect={(address) => onContinue(address)}
+          onSelect={onContinue}
         />
       </div>
 
@@ -90,9 +90,7 @@ const InputStep: React.FC<InputStepProps> = ({ paymentInput, isLoading, error, o
           disabled={isLoading}
           className="flex-1 flex items-center justify-center gap-2 py-3 bg-spark-surface border border-spark-border rounded-xl text-spark-text-secondary hover:text-spark-text-primary hover:border-spark-border-light transition-colors disabled:opacity-50"
         >
-          <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-            <path strokeLinecap="round" strokeLinejoin="round" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z" />
-          </svg>
+          <ContactsIcon />
           <span className="font-medium">Contacts</span>
         </button>
       </div>

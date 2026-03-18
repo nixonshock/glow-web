@@ -1,11 +1,6 @@
 import React, { createContext, useContext, useState, useCallback } from 'react';
 import { createPortal } from 'react-dom';
-import ToastNotification, { ToastType } from '../components/ToastNotification';
-
-interface ToastAction {
-  label: string;
-  onClick: () => void;
-}
+import ToastNotification, { ToastType, ToastAction } from '../components/ToastNotification';
 
 interface Toast {
   id: number;
