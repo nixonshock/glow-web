@@ -55,7 +55,7 @@ const ConfirmStep: React.FC<ConfirmStepProps> = ({ amountSats, feesSat, feesIncl
               Processing...
             </span>
           ) : (
-            'Confirm & Send'
+            'Send'
           )}
         </PrimaryButton>
       </div>

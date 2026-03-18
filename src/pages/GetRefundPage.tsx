@@ -426,7 +426,7 @@ const GetRefundPage: React.FC<GetRefundPageProps> = ({ onBack, animationDirectio
                     disabled={isProcessing}
                     className="flex-1"
                   >
-                    Confirm & Refund
+                    Refund
                   </PrimaryButton>
                 </div>
               </>
