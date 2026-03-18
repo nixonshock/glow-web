@@ -4,8 +4,6 @@ A demo web and PWA app showing how to implement [Breez SDK](https://sdk-doc-spar
 
 See it in action [here](https://glow-app.co). 
 
-> **Note:** The demo is for demonstration purposes only and not intended for production use.
-
 ## Overview
 
 Built with React, this demo app showcases best practices for integrating Lightning in a web environment using the Breez SDK’s WebAssembly bindings. It enables users to:
@@ -67,7 +65,6 @@ npm run build
 
 The build output will be in the `dist` directory.
 
-## Security Notes
+## Security Note
 
-- The app stores your mnemonic in localStorage, which is not suitable for production use
-- For a production app, use secure storage and encryption for sensitive data
+If you don’t use a passkey (recommended), your recovery phrase is stored in localStorage which is not a secure storage mechanism. Any JavaScript running in the browser (including XSS attacks or malicious extensions) can access it, potentially compromising your funds.
