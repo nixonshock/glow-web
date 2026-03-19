@@ -189,13 +189,9 @@ const AppContent: React.FC = () => {
 
   return (
     <WalletProvider client={sdk.sdk}>
-      {sdk.isConnected ? (
-        <ContactsProvider>
-          {renderCurrentScreen()}
-        </ContactsProvider>
-      ) : (
-        renderCurrentScreen()
-      )}
+      <ContactsProvider>
+        {renderCurrentScreen()}
+      </ContactsProvider>
       {sdk.celebrationAmount !== null && (
         <PaymentReceivedCelebration
           amount={sdk.celebrationAmount}
