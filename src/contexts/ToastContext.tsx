@@ -1,16 +1,17 @@
 import React, { createContext, useContext, useState, useCallback } from 'react';
 import { createPortal } from 'react-dom';
-import ToastNotification, { ToastType } from '../components/ToastNotification';
+import ToastNotification, { ToastType, ToastAction } from '../components/ToastNotification';
 
 interface Toast {
   id: number;
   type: ToastType;
   message: string;
   detail?: string;
+  action?: ToastAction;
 }
 
 interface ToastContextType {
-  showToast: (type: ToastType, message: string, detail?: string) => void;
+  showToast: (type: ToastType, message: string, detail?: string, action?: ToastAction) => void;
 }
 
 const ToastContext = createContext<ToastContextType>({
@@ -24,9 +25,9 @@ let toastIdCounter = 0;
 export const ToastProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [toasts, setToasts] = useState<Toast[]>([]);
 
-  const showToast = useCallback((type: ToastType, message: string, detail?: string) => {
+  const showToast = useCallback((type: ToastType, message: string, detail?: string, action?: ToastAction) => {
     const id = toastIdCounter++;
-    setToasts(prevToasts => [...prevToasts, { id, type, message, detail }]);
+    setToasts(prevToasts => [...prevToasts, { id, type, message, detail, action }]);
   }, []);
 
   const removeToast = useCallback((id: number) => {
@@ -44,6 +45,7 @@ export const ToastProvider: React.FC<{ children: React.ReactNode }> = ({ childre
               type={toast.type}
               message={toast.message}
               detail={toast.detail}
+              action={toast.action}
               onClose={() => removeToast(toast.id)}
             />
           ))}

@@ -17,6 +17,7 @@ import BackupPage from './pages/BackupPage';
 import PasskeyPage from './pages/PasskeyPage';
 import SettingsPage from './pages/SettingsPage';
 import FiatCurrenciesPage from './pages/FiatCurrenciesPage';
+import { ContactsProvider } from './contexts/ContactsContext';
 import { useIOSViewportFix } from './hooks/useIOSViewportFix';
 import type { Seed } from '@breeztech/breez-sdk-spark';
 
@@ -188,7 +189,13 @@ const AppContent: React.FC = () => {
 
   return (
     <WalletProvider client={sdk.sdk}>
-      {renderCurrentScreen()}
+      {sdk.isConnected ? (
+        <ContactsProvider>
+          {renderCurrentScreen()}
+        </ContactsProvider>
+      ) : (
+        renderCurrentScreen()
+      )}
       {sdk.celebrationAmount !== null && (
         <PaymentReceivedCelebration
           amount={sdk.celebrationAmount}

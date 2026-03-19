@@ -138,7 +138,7 @@ const ReceivePaymentDialog: React.FC<ReceivePaymentDialogProps> = ({ isOpen, onC
   };
 
   return (
-    <BottomSheetContainer isOpen={isOpen} onClose={onClose}>
+    <BottomSheetContainer isOpen={isOpen} onClose={onClose} showBackdrop>
       <BottomSheetCard>
         <DialogHeader
           title="Receive"

@@ -191,9 +191,8 @@ export function useBreezSdk(
 
         if (isReceived) {
           setCelebrationAmount(amountSats);
-        } else {
-          showToastRef.current('success', 'Payment Sent', `${event.payment.amount} sats sent successfully`);
         }
+        // Send toast suppressed — ResultStep dialog already shows success
       }
       refreshWalletData(false);
     } else if (event.type === 'claimedDeposits') {

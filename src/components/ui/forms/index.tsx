@@ -36,6 +36,7 @@ export interface FormInputProps {
   type?: string;
   value: string;
   onChange: (e: React.ChangeEvent<HTMLInputElement>) => void;
+  onKeyDown?: (e: React.KeyboardEvent<HTMLInputElement>) => void;
   placeholder?: string;
   min?: number;
   max?: number;
@@ -48,6 +49,7 @@ export const FormInput: React.FC<FormInputProps> = ({
   type = "text",
   value,
   onChange,
+  onKeyDown,
   placeholder,
   min,
   max,
@@ -59,7 +61,8 @@ export const FormInput: React.FC<FormInputProps> = ({
     type={type}
     value={value}
     onChange={onChange}
-    className={`w-full bg-spark-dark border border-spark-border rounded-xl px-4 py-3 text-spark-text-primary placeholder-spark-text-muted focus:border-spark-primary focus:ring-2 focus:ring-spark-primary/20 transition-all ${disabled ? 'opacity-50 cursor-not-allowed' : ''} ${className}`}
+    onKeyDown={onKeyDown}
+    className={`w-full bg-spark-dark border border-spark-border rounded-xl px-4 py-3 text-spark-text-primary placeholder-spark-text-muted focus:border-spark-primary focus:ring-0 transition-all ${disabled ? 'opacity-50 cursor-not-allowed' : ''} ${className}`}
     placeholder={placeholder}
     min={min}
     max={max}
@@ -87,7 +90,7 @@ export const FormTextarea: React.FC<FormTextareaProps> = ({
   <textarea
     value={value}
     onChange={onChange}
-    className={`w-full bg-spark-dark border border-spark-border rounded-xl px-4 py-3 text-spark-text-primary placeholder-spark-text-muted focus:border-spark-primary focus:ring-2 focus:ring-spark-primary/20 transition-all resize-none ${disabled ? 'opacity-50 cursor-not-allowed' : ''} ${className}`}
+    className={`w-full bg-spark-dark border border-spark-border rounded-xl px-4 py-3 text-spark-text-primary placeholder-spark-text-muted focus:border-spark-primary focus:ring-0 transition-all resize-none ${disabled ? 'opacity-50 cursor-not-allowed' : ''} ${className}`}
     placeholder={placeholder}
     disabled={disabled}
     rows={rows}

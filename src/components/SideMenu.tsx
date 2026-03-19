@@ -137,9 +137,9 @@ const SideMenu: React.FC<SideMenuProps> = ({ isOpen, onClose, onLogout, onOpenSe
             <div className="flex items-center justify-between mb-8 pt-6">
               <div className="flex items-center gap-3">
                 <div className="w-16 h-16 flex items-center justify-center relative">
-                  <img 
-                    src="/assets/Glow_Logo.png" 
-                    alt="Glow" 
+                  <img
+                    src="/assets/Glow_Logo.png"
+                    alt="Glow"
                     className="w-full h-full object-contain"
                   />
                   {/* Twinkling stars */}
@@ -159,9 +159,9 @@ const SideMenu: React.FC<SideMenuProps> = ({ isOpen, onClose, onLogout, onOpenSe
                 </div>
                 <h2 className="font-display text-xl font-bold text-spark-text-primary">Glow</h2>
               </div>
-              <button 
-                onClick={onClose} 
-                className="p-2 -mr-2 text-spark-text-muted hover:text-spark-text-primary rounded-lg hover:bg-white/5 transition-colors" 
+              <button
+                onClick={onClose}
+                className="p-2 -mr-2 text-spark-text-muted hover:text-spark-text-primary rounded-lg hover:bg-white/5 transition-colors"
                 aria-label="Close"
               >
                 <CloseIcon />

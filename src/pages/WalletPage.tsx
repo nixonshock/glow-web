@@ -1,18 +1,19 @@
 import React, { useState, useRef, useCallback } from 'react';
 import { useWallet } from '../contexts/WalletContext';
+import { useToast } from '../contexts/ToastContext';
 import { logger, LogCategory } from '@/services/logger';
 import CollapsingWalletHeader from '../components/CollapsingWalletHeader';
 import SideMenu from '../components/SideMenu';
 import TransactionList from '../components/TransactionList';
 import { GetInfoResponse, Payment, Rate, FiatCurrency, DepositInfo } from '@breeztech/breez-sdk-spark';
 import { ArrowUpIcon, QrCodeIcon, ArrowDownIcon } from '../components/Icons';
-import { SendInput } from '@/types/domain';
 import { mergeDepositsWithTransactions, ExtendedPayment, isUnclaimedDepositPayment } from '@/utils/depositHelpers';
 import SendPaymentDialog from '../features/send/SendPaymentDialog';
 import ReceivePaymentDialog from '../features/receive/ReceivePaymentDialog';
 import QrScannerDialog from '../components/QrScannerDialog';
 import PaymentDetailsDialog from '../components/PaymentDetailsDialog';
 import UnclaimedDepositDetailsPage from './UnclaimedDepositDetailsPage';
+import SaveContactDialog from '../features/send/components/SaveContactDialog';
 
 interface WalletPageProps {
   walletInfo: GetInfoResponse | null;
@@ -47,9 +48,10 @@ const WalletPage: React.FC<WalletPageProps> = ({
   onOpenSettings,
   onOpenBackup,
   onOpenBuyBitcoin,
-  onDepositChanged
+  onDepositChanged,
 }) => {
   const wallet = useWallet();
+  const { showToast } = useToast();
   const [scrollProgress, setScrollProgress] = useState<number>(0);
   const [isSendDialogOpen, setIsSendDialogOpen] = useState(false);
   const [isReceiveDialogOpen, setIsReceiveDialogOpen] = useState(false);
@@ -57,8 +59,9 @@ const WalletPage: React.FC<WalletPageProps> = ({
   const [scannerOpenedFromSend, setScannerOpenedFromSend] = useState(false);
   const [selectedPayment, setSelectedPayment] = useState<Payment | null>(null);
   const [selectedDeposit, setSelectedDeposit] = useState<DepositInfo | null>(null);
-  const [paymentInput, setPaymentInput] = useState<SendInput | null>(null);
+  const [paymentInput, setPaymentInput] = useState<string | null>(null);
   const [isMenuOpen, setIsMenuOpen] = useState(false);
+  const [saveContactAddress, setSaveContactAddress] = useState<string | null>(null);
 
   const transactionsContainerRef = useRef<HTMLDivElement>(null);
 
@@ -112,6 +115,17 @@ const WalletPage: React.FC<WalletPageProps> = ({
     await refreshWalletData(false);
   }, [onDepositChanged, refreshWalletData]);
 
+  const handleSuccessfulSend = useCallback((lightningAddress?: string) => {
+    if (lightningAddress) {
+      setTimeout(() => {
+        showToast('info', 'Save as contact?', lightningAddress, {
+          label: 'Save',
+          onClick: () => setSaveContactAddress(lightningAddress),
+        });
+      }, 500);
+    }
+  }, [showToast]);
+
   const handleSendDialogClose = useCallback(() => {
     setIsSendDialogOpen(false);
     setPaymentInput(null);
@@ -149,7 +163,7 @@ const WalletPage: React.FC<WalletPageProps> = ({
       });
       setIsQrScannerOpen(false);
       setScannerOpenedFromSend(false);
-      setPaymentInput({ rawInput: data, parsedInput: parseResult });
+      setPaymentInput(data);
       setIsSendDialogOpen(true);
     } catch (error) {
       logger.error(LogCategory.UI, 'Failed to parse QR code', {
@@ -198,8 +212,9 @@ const WalletPage: React.FC<WalletPageProps> = ({
       <SendPaymentDialog
         isOpen={isSendDialogOpen}
         onClose={handleSendDialogClose}
-        initialPaymentInput={paymentInput}
+        initialRawInput={paymentInput}
         onScanQr={handleScanFromSendDialog}
+        onSuccessfulSend={handleSuccessfulSend}
       />
 
       {/* Receive Payment Dialog - always mounted for instant response */}
@@ -270,6 +285,13 @@ const WalletPage: React.FC<WalletPageProps> = ({
           <span>Receive</span>
         </button>
       </div>
+
+      {/* Save Contact Dialog */}
+      <SaveContactDialog
+        isOpen={!!saveContactAddress}
+        lightningAddress={saveContactAddress || ''}
+        onClose={() => setSaveContactAddress(null)}
+      />
 
       {/* Side Menu */}
       <SideMenu

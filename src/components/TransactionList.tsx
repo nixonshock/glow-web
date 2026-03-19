@@ -1,5 +1,7 @@
 import React, { useMemo } from 'react';
 import { Payment } from '@breeztech/breez-sdk-spark';
+import { useContactsContext } from '../contexts/ContactsContext';
+import { getPaymentDescription } from '../utils/paymentDescription';
 import { formatWithCommas } from '../utils/formatNumber';
 import { ArrowDownIcon, ArrowUpIcon, LightningBoltIcon, WalletIcon } from './Icons';
 
@@ -32,22 +34,6 @@ const getTransactionIcon = (payment: Payment): React.ReactNode => {
   return payment.paymentType === 'receive' ? ReceiveIcon : SendIcon;
 };
 
-const getDescription = (payment: Payment): string => {
-  if (payment.method === 'lightning') {
-    if (payment.details?.type === 'lightning') {
-      if (payment.details.lnurlPayInfo?.lnAddress) {
-        return payment.details.lnurlPayInfo.lnAddress;
-      }
-      return payment.details?.description || 'Lightning Payment';
-    }
-    return 'Lightning Payment';
-  }
-  if (payment.method === 'spark') return 'Spark Transfer';
-  if (payment.method === 'deposit') return 'BTC Transfer';
-  if (payment.method === 'withdraw') return 'BTC Transfer';
-  return 'Payment';
-};
-
 const getMethodIcon = (payment: Payment): React.ReactNode => {
   return payment.method === 'lightning' ? LightningIcon : null;
 };
@@ -73,6 +59,8 @@ interface TransactionListProps {
 }
 
 const TransactionList: React.FC<TransactionListProps> = ({ transactions, onPaymentSelected, isSyncing }) => {
+  const { findContactByAddress } = useContactsContext();
+
   // Split transactions in single pass (js-combine-iterations optimization)
   const { pendingApproval, regularPayments } = useMemo(() => {
     const pending: Payment[] = [];
@@ -144,7 +132,7 @@ const TransactionList: React.FC<TransactionListProps> = ({ transactions, onPayme
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-1.5">
             <p className="text-[15px] font-medium text-spark-text-primary truncate">
-              {getDescription(tx)}
+              {getPaymentDescription(tx, findContactByAddress)}
             </p>
             <span className="text-spark-text-muted flex-shrink-0">{getMethodIcon(tx)}</span>
             {isPending && (
