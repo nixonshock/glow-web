@@ -1,7 +1,7 @@
 import React, { createContext, useContext } from 'react';
 import type { BreezSdk } from '@breeztech/breez-sdk-spark';
 
-const WalletContext = createContext<BreezSdk | null>(null);
+export const WalletContext = createContext<BreezSdk | null>(null);
 
 export const WalletProvider: React.FC<{
   children: React.ReactNode;

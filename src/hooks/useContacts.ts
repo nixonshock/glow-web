@@ -1,6 +1,6 @@
-import { useState, useCallback, useEffect, useMemo } from 'react';
+import { useState, useCallback, useEffect, useMemo, useContext } from 'react';
 import type { Contact, SdkEvent } from '@breeztech/breez-sdk-spark';
-import { useWallet } from '../contexts/WalletContext';
+import { WalletContext } from '../contexts/WalletContext';
 import { logger, LogCategory } from '../services/logger';
 import { formatError } from '../utils/formatError';
 
@@ -32,13 +32,14 @@ export interface UseContactsReturn {
 }
 
 export function useContacts(): UseContactsReturn {
-  const wallet = useWallet();
+  const wallet = useContext(WalletContext);
   const [contacts, setContacts] = useState<Contact[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
+  const [isLoading, setIsLoading] = useState(false);
   const [hasSynced, setHasSynced] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const refreshContacts = useCallback(async () => {
+    if (!wallet) return;
     try {
       const result = await wallet.listContacts({});
       setContacts(prev => {
@@ -56,13 +57,22 @@ export function useContacts(): UseContactsReturn {
     }
   }, [wallet]);
 
+  // Reset state when wallet disconnects; fetch when it connects
   useEffect(() => {
+    if (!wallet) {
+      setContacts([]);
+      setHasSynced(false);
+      setError(null);
+      setIsLoading(false);
+      return;
+    }
     setIsLoading(true);
     refreshContacts().finally(() => setIsLoading(false));
-  }, [refreshContacts]);
+  }, [refreshContacts, wallet]);
 
   // Refresh contacts when SDK sync completes (contacts may not be available until first sync)
   useEffect(() => {
+    if (!wallet) return;
     let disposed = false;
     let storedListenerId: string | null = null;
 
@@ -108,6 +118,7 @@ export function useContacts(): UseContactsReturn {
   );
 
   const addContact = useCallback(async (name: string, paymentIdentifier: string): Promise<Contact | null> => {
+    if (!wallet) return null;
     setError(null);
     try {
       const contact = await wallet.addContact({ name, paymentIdentifier });
@@ -121,6 +132,7 @@ export function useContacts(): UseContactsReturn {
   }, [wallet, refreshContacts]);
 
   const updateContact = useCallback(async (id: string, name: string, paymentIdentifier: string): Promise<Contact | null> => {
+    if (!wallet) return null;
     setError(null);
     try {
       const contact = await wallet.updateContact({ id, name, paymentIdentifier });
@@ -134,6 +146,7 @@ export function useContacts(): UseContactsReturn {
   }, [wallet, refreshContacts]);
 
   const deleteContact = useCallback(async (id: string): Promise<boolean> => {
+    if (!wallet) return false;
     setError(null);
     try {
       await wallet.deleteContact(id);
