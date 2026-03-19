@@ -287,13 +287,11 @@ const WalletPage: React.FC<WalletPageProps> = ({
       </div>
 
       {/* Save Contact Dialog */}
-      {saveContactAddress && (
-        <SaveContactDialog
-          isOpen={!!saveContactAddress}
-          lightningAddress={saveContactAddress}
-          onClose={() => setSaveContactAddress(null)}
-        />
-      )}
+      <SaveContactDialog
+        isOpen={!!saveContactAddress}
+        lightningAddress={saveContactAddress || ''}
+        onClose={() => setSaveContactAddress(null)}
+      />
 
       {/* Side Menu */}
       <SideMenu

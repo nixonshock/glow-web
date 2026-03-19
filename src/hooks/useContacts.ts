@@ -10,6 +10,15 @@ export function isValidLightningAddress(address: string): boolean {
   return LN_ADDRESS_REGEX.test(address);
 }
 
+export function filterContacts(contacts: Contact[], query: string): Contact[] {
+  if (!contacts.length || !query.trim()) return [];
+  const q = query.toLowerCase();
+  return contacts.filter(c =>
+    c.name.toLowerCase().includes(q) ||
+    c.paymentIdentifier.toLowerCase().includes(q)
+  );
+}
+
 export interface UseContactsReturn {
   contacts: Contact[];
   isLoading: boolean;
@@ -52,14 +61,21 @@ export function useContacts(): UseContactsReturn {
 
   // Refresh contacts when SDK sync completes (contacts may not be available until first sync)
   useEffect(() => {
-    let listenerId: string | null = null;
+    let disposed = false;
+    let storedListenerId: string | null = null;
+
     (async () => {
       try {
-        listenerId = await wallet.addEventListener({ onEvent: (event: SdkEvent) => {
+        const id = await wallet.addEventListener({ onEvent: (event: SdkEvent) => {
           if (event.type === 'synced') {
             void refreshContacts();
           }
         } });
+        if (disposed) {
+          wallet.removeEventListener(id).catch(() => { });
+        } else {
+          storedListenerId = id;
+        }
       } catch (e) {
         logger.warn(LogCategory.SDK, 'Failed to attach contacts event listener', {
           error: e instanceof Error ? e.message : String(e),
@@ -68,8 +84,9 @@ export function useContacts(): UseContactsReturn {
     })();
 
     return () => {
-      if (listenerId) {
-        wallet.removeEventListener(listenerId).catch(() => { });
+      disposed = true;
+      if (storedListenerId) {
+        wallet.removeEventListener(storedListenerId).catch(() => { });
       }
     };
   }, [wallet, refreshContacts]);

@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { BottomSheetContainer, BottomSheetCard, DialogHeader, PrimaryButton } from '../../../components/ui';
+import { BottomSheetContainer, BottomSheetCard, DialogHeader, PrimaryButton, FormError } from '../../../components/ui';
 import { ContactsIcon, CheckIcon } from '../../../components/Icons';
 import { useContactsContext } from '../../../contexts/ContactsContext';
 
@@ -13,8 +13,17 @@ const SaveContactDialog: React.FC<SaveContactDialogProps> = ({ isOpen, lightning
   const [name, setName] = useState('');
   const [isSaving, setIsSaving] = useState(false);
   const [saved, setSaved] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const { addContact } = useContactsContext();
   const nameInputRef = useRef<HTMLInputElement>(null);
+  const closeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Clear auto-close timer on unmount
+  useEffect(() => {
+    return () => {
+      if (closeTimerRef.current) clearTimeout(closeTimerRef.current);
+    };
+  }, []);
 
   // Reset state when dialog opens
   useEffect(() => {
@@ -22,6 +31,11 @@ const SaveContactDialog: React.FC<SaveContactDialogProps> = ({ isOpen, lightning
       setName(lightningAddress.split('@')[0] || '');
       setIsSaving(false);
       setSaved(false);
+      setError(null);
+      if (closeTimerRef.current) {
+        clearTimeout(closeTimerRef.current);
+        closeTimerRef.current = null;
+      }
     }
   }, [isOpen, lightningAddress]);
 
@@ -37,11 +51,14 @@ const SaveContactDialog: React.FC<SaveContactDialogProps> = ({ isOpen, lightning
     const trimmed = name.trim();
     if (!trimmed) return;
     setIsSaving(true);
+    setError(null);
     try {
       const result = await addContact(trimmed, lightningAddress);
       if (result) {
         setSaved(true);
-        setTimeout(onClose, 2000);
+        closeTimerRef.current = setTimeout(onClose, 2000);
+      } else {
+        setError('Failed to save contact');
       }
     } finally {
       setIsSaving(false);
@@ -76,6 +93,7 @@ const SaveContactDialog: React.FC<SaveContactDialogProps> = ({ isOpen, lightning
                 className="w-full bg-spark-dark border border-spark-border rounded-xl px-4 py-3 text-spark-text-primary placeholder-spark-text-muted focus:border-spark-primary focus:ring-0 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
               />
 
+              <FormError error={error} />
               <div className="flex gap-3">
                 <button
                   onClick={onClose}

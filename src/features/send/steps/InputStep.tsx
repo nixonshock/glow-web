@@ -3,6 +3,7 @@ import { SimpleAlert } from '../../../components/AlertCard';
 import { PrimaryButton } from '../../../components/ui';
 import ContactAutocomplete from '../components/ContactAutocomplete';
 import { useContactsContext } from '../../../contexts/ContactsContext';
+import { filterContacts } from '../../../hooks/useContacts';
 import { logger, LogCategory } from '@/services/logger';
 import { ClipboardIcon, QrCodeIcon, SpinnerIcon, ContactsIcon, CloseIcon } from '@/components/Icons';
 import type { Contact } from '@breeztech/breez-sdk-spark';
@@ -44,16 +45,9 @@ const InputStep: React.FC<InputStepProps> = ({ paymentInput, selectedContactAddr
     }
   }, [selectedContactAddress, contacts]);
 
-  const hasAutocompleteResults = useMemo(() => {
-    if (!contacts.length || !localPaymentInput.trim()) return false;
-    const q = localPaymentInput.toLowerCase();
-    return contacts.some(c =>
-      c.name.toLowerCase().includes(q) ||
-      c.paymentIdentifier.toLowerCase().includes(q)
-    );
-  }, [contacts, localPaymentInput]);
+  const autocompleteContacts = useMemo(() => filterContacts(contacts, localPaymentInput), [contacts, localPaymentInput]);
 
-  const showDropdown = isInputFocused && hasAutocompleteResults && !isLoading;
+  const showDropdown = isInputFocused && autocompleteContacts.length > 0 && !isLoading;
 
   const handlePaste = async () => {
     try {
@@ -128,7 +122,7 @@ const InputStep: React.FC<InputStepProps> = ({ paymentInput, selectedContactAddr
               data-testid="payment-input"
             />
             <ContactAutocomplete
-              query={localPaymentInput}
+              contacts={autocompleteContacts}
               isVisible={isInputFocused}
               isLoading={isLoading}
               onSelect={handleContactSelect}

@@ -1,7 +1,7 @@
 import React, { useState, useMemo, useEffect, useRef } from 'react';
 import type { Contact } from '@breeztech/breez-sdk-spark';
 import { useContactsContext } from '../../../contexts/ContactsContext';
-import { isValidLightningAddress } from '../../../hooks/useContacts';
+import { isValidLightningAddress, filterContacts } from '../../../hooks/useContacts';
 import { FormInput, FormError, PrimaryButton, ConfirmDialog } from '../../../components/ui';
 import { BackIcon, PlusIcon, EditPencilIcon, TrashIcon, ContactsIcon, SearchIcon } from '../../../components/Icons';
 import { useWallet } from '../../../contexts/WalletContext';
@@ -25,13 +25,7 @@ const ContactsSubView: React.FC<ContactsSubViewProps> = ({ onSelect, onBack }) =
   const nameInputRef = useRef<HTMLInputElement>(null);
 
   const filteredContacts = useMemo(() => {
-    const query = searchQuery.toLowerCase();
-    const filtered = query
-      ? contacts.filter(c =>
-          c.name.toLowerCase().includes(query) ||
-          c.paymentIdentifier.toLowerCase().includes(query)
-        )
-      : [...contacts];
+    const filtered = searchQuery.trim() ? filterContacts(contacts, searchQuery) : [...contacts];
     return filtered.sort((a, b) => a.name.localeCompare(b.name));
   }, [contacts, searchQuery]);
 
@@ -256,6 +250,7 @@ const ContactsSubView: React.FC<ContactsSubViewProps> = ({ onSelect, onBack }) =
               id="subview-contact-address"
               value={formAddress}
               onChange={(e) => setFormAddress(e.target.value)}
+              onKeyDown={(e: React.KeyboardEvent<HTMLInputElement>) => { if (e.key === 'Enter' && formName.trim() && formAddress.trim()) handleSave(); }}
               placeholder="user@domain.com"
               disabled={isSaving}
             />

@@ -125,7 +125,10 @@ const SendPaymentDialog: React.FC<SendPaymentDialogProps> = ({ isOpen, onClose, 
                 onClearError={send.clearError}
                 onContinue={(input) => send.processInput(input)}
                 onScanQr={onScanQr}
-                onOpenContacts={() => setShowContactsView(true)}
+                onOpenContacts={() => {
+                  setSelectedContactAddress(null);
+                  setShowContactsView(true);
+                }}
               />
             )}
 

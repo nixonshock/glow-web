@@ -130,7 +130,7 @@ const ToastNotification: React.FC<ToastNotificationProps> = ({
                   action.onClick();
                 }, 300);
               }}
-              className="flex-shrink-0 px-3 py-1 text-xs font-semibold bg-spark-primary/80 hover:bg-spark-primary rounded-full transition-colors"
+              className="flex-shrink-0 px-3 py-1 text-xs font-semibold text-white bg-spark-primary/80 hover:bg-spark-primary rounded-full transition-colors"
             >
               {action.label}
             </button>

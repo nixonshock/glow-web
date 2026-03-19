@@ -1,33 +1,22 @@
-import React, { useMemo } from 'react';
-import { useContactsContext } from '../../../contexts/ContactsContext';
+import React from 'react';
+import type { Contact } from '@breeztech/breez-sdk-spark';
 
 interface ContactAutocompleteProps {
-  query: string;
+  contacts: Contact[];
   isVisible: boolean;
   isLoading: boolean;
   onSelect: (paymentIdentifier: string) => void;
 }
 
-const ContactAutocomplete: React.FC<ContactAutocompleteProps> = ({ query, isVisible, isLoading, onSelect }) => {
-  const { contacts } = useContactsContext();
-
-  const filtered = useMemo(() => {
-    if (!contacts.length || !query.trim()) return [];
-    const q = query.toLowerCase();
-    return contacts.filter(c =>
-      c.name.toLowerCase().includes(q) ||
-      c.paymentIdentifier.toLowerCase().includes(q)
-    );
-  }, [contacts, query]);
-
-  if (!isVisible || !filtered.length || isLoading) return null;
+const ContactAutocomplete: React.FC<ContactAutocompleteProps> = ({ contacts, isVisible, isLoading, onSelect }) => {
+  if (!isVisible || !contacts.length || isLoading) return null;
 
   return (
     <div
       className="absolute left-0 right-0 top-full z-10 bg-spark-dark border border-spark-border border-t-0 rounded-b-xl shadow-lg overflow-hidden max-h-[192px] overflow-y-auto"
       onMouseDown={(e) => e.preventDefault()}
     >
-      {filtered.map((contact, index) => (
+      {contacts.map((contact, index) => (
         <button
           key={contact.id}
           onClick={() => onSelect(contact.paymentIdentifier)}
