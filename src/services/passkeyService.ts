@@ -28,14 +28,6 @@ function createPasskeyInstance(): Passkey {
 }
 
 /**
- * No-op — kept for backward compatibility.
- * With per-operation instances there is nothing to release.
- */
-export function releasePasskey(): void {
-  // No singleton to release — instances are created fresh per call.
-}
-
-/**
  * Create a new passkey with PRF support.
  * Only registers the credential — no seed derivation.
  * Triggers exactly 1 WebAuthn prompt.
