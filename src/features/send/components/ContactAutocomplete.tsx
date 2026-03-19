@@ -24,14 +24,16 @@ const ContactAutocomplete: React.FC<ContactAutocompleteProps> = ({ query, isVisi
 
   return (
     <div
-      className="absolute left-0 right-0 top-full mt-1 z-10 bg-spark-surface border border-spark-border rounded-xl shadow-lg overflow-y-auto max-h-[192px]"
+      className="absolute left-0 right-0 top-full z-10 bg-spark-dark border border-spark-border border-t-0 rounded-b-xl shadow-lg overflow-hidden max-h-[192px] overflow-y-auto"
       onMouseDown={(e) => e.preventDefault()}
     >
-      {filtered.map((contact) => (
+      {filtered.map((contact, index) => (
         <button
           key={contact.id}
           onClick={() => onSelect(contact.paymentIdentifier)}
-          className="w-full flex items-center gap-3 px-3 py-2.5 hover:bg-white/5 transition-colors text-left"
+          className={`w-full flex items-center gap-3 px-4 py-2.5 hover:bg-white/5 transition-colors text-left ${
+            index > 0 ? 'border-t border-spark-border/50' : ''
+          }`}
         >
           <div className="w-8 h-8 rounded-full bg-spark-primary/15 flex items-center justify-center flex-shrink-0">
             <span className="text-spark-primary font-display font-bold text-xs">

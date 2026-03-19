@@ -1,9 +1,10 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect, useRef } from 'react';
 import type { Contact } from '@breeztech/breez-sdk-spark';
 import { useContactsContext } from '../../../contexts/ContactsContext';
 import { isValidLightningAddress } from '../../../hooks/useContacts';
 import { FormInput, FormError, PrimaryButton, ConfirmDialog } from '../../../components/ui';
-import { BackIcon, PlusIcon, EditPencilIcon, TrashIcon, ContactsIcon } from '../../../components/Icons';
+import { BackIcon, PlusIcon, EditPencilIcon, TrashIcon, ContactsIcon, SearchIcon } from '../../../components/Icons';
+import { useWallet } from '../../../contexts/WalletContext';
 
 interface ContactsSubViewProps {
   onSelect: (address: string) => void;
@@ -11,6 +12,7 @@ interface ContactsSubViewProps {
 }
 
 const ContactsSubView: React.FC<ContactsSubViewProps> = ({ onSelect, onBack }) => {
+  const wallet = useWallet();
   const { contacts, isLoading, addContact, updateContact, deleteContact } = useContactsContext();
   const [searchQuery, setSearchQuery] = useState('');
   const [showAddForm, setShowAddForm] = useState(false);
@@ -20,6 +22,7 @@ const ContactsSubView: React.FC<ContactsSubViewProps> = ({ onSelect, onBack }) =
   const [formAddress, setFormAddress] = useState('');
   const [formError, setFormError] = useState<string | null>(null);
   const [isSaving, setIsSaving] = useState(false);
+  const nameInputRef = useRef<HTMLInputElement>(null);
 
   const filteredContacts = useMemo(() => {
     const query = searchQuery.toLowerCase();
@@ -31,6 +34,16 @@ const ContactsSubView: React.FC<ContactsSubViewProps> = ({ onSelect, onBack }) =
       : [...contacts];
     return filtered.sort((a, b) => a.name.localeCompare(b.name));
   }, [contacts, searchQuery]);
+
+  const isFormOpen = showAddForm || !!editingContact;
+
+  // Auto-focus name field when add/edit form opens
+  useEffect(() => {
+    if (isFormOpen) {
+      const timer = setTimeout(() => nameInputRef.current?.focus(), 50);
+      return () => clearTimeout(timer);
+    }
+  }, [isFormOpen]);
 
   const resetForm = () => {
     setFormName('');
@@ -58,10 +71,22 @@ const ContactsSubView: React.FC<ContactsSubViewProps> = ({ onSelect, onBack }) =
     const address = formAddress.trim();
     if (!name) { setFormError('Name is required'); return; }
     if (!address) { setFormError('Address is required'); return; }
-    if (!isValidLightningAddress(address)) { setFormError('Invalid lightning address format'); return; }
+    if (!isValidLightningAddress(address)) { setFormError('Invalid Lightning address format'); return; }
 
     setIsSaving(true);
     setFormError(null);
+
+    // Verify the address actually resolves (skip if editing and address unchanged)
+    const addressChanged = !editingContact || editingContact.paymentIdentifier !== address;
+    if (addressChanged) {
+      try {
+        await wallet.parse(address);
+      } catch {
+        setIsSaving(false);
+        setFormError('Lightning address not found');
+        return;
+      }
+    }
 
     if (editingContact) {
       const result = await updateContact(editingContact.id, name, address);
@@ -82,62 +107,164 @@ const ContactsSubView: React.FC<ContactsSubViewProps> = ({ onSelect, onBack }) =
   };
 
   return (
-    <div className="flex flex-col">
-      {/* Header */}
-      <div className="flex items-center gap-3 mb-4">
-        <button
-          onClick={onBack}
-          className="p-1.5 text-spark-text-muted hover:text-spark-text-primary rounded-lg hover:bg-white/5 transition-colors"
-        >
-          <BackIcon />
-        </button>
-        <h2 className="font-display text-lg font-bold text-spark-text-primary">Contacts</h2>
-      </div>
+    <div className="flex flex-col relative overflow-hidden min-h-[420px]">
+      {/* Contacts list view */}
+      <div
+        className={`transition-all duration-200 ease-out ${
+          isFormOpen
+            ? 'absolute inset-0 opacity-0 -translate-x-full pointer-events-none'
+            : 'relative opacity-100 translate-x-0'
+        }`}
+      >
+        {/* Header */}
+        <div className="flex items-center gap-3 mb-4">
+          <button
+            onClick={onBack}
+            className="p-1.5 text-spark-text-muted hover:text-spark-text-primary rounded-lg hover:bg-white/5 transition-colors"
+          >
+            <BackIcon />
+          </button>
+          <h2 className="font-display text-lg font-bold text-spark-text-primary flex-1">Contacts</h2>
+          <button
+            onClick={handleStartAdd}
+            className="flex items-center gap-1.5 px-3 py-1.5 bg-spark-primary text-white text-sm font-medium rounded-xl hover:bg-spark-primary-light transition-colors"
+            aria-label="Add contact"
+          >
+            <PlusIcon size="sm" />
+            <span>Add</span>
+          </button>
+        </div>
 
-      {/* Search + Add */}
-      <div className="flex gap-2 mb-3">
-        <div className="flex-1">
-          <FormInput
-            id="contacts-subview-search"
+        {/* Search */}
+        <div className="relative mb-3">
+          <div className="absolute left-3 top-1/2 -translate-y-1/2 text-spark-text-muted pointer-events-none">
+            <SearchIcon />
+          </div>
+          <input
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             placeholder="Search contacts..."
+            className="w-full bg-spark-dark border border-spark-border rounded-xl pl-9 pr-4 py-2.5 text-sm text-spark-text-primary placeholder-spark-text-muted focus:border-spark-primary focus:ring-0 transition-all"
           />
         </div>
-        <button
-          onClick={handleStartAdd}
-          className="px-3 bg-spark-primary text-white rounded-xl hover:bg-spark-primary-light transition-colors flex items-center justify-center"
-          aria-label="Add contact"
-        >
-          <PlusIcon />
-        </button>
+
+        {/* Contact list */}
+        {isLoading ? (
+          <div className="flex items-center justify-center py-12">
+            <div className="w-6 h-6 border-2 border-spark-primary border-t-transparent rounded-full animate-spin" />
+          </div>
+        ) : filteredContacts.length === 0 ? (
+          <div className="flex flex-col items-center justify-center py-12 px-6">
+            <div className="w-14 h-14 rounded-2xl bg-spark-surface border border-spark-border flex items-center justify-center mb-3">
+              <ContactsIcon className="w-7 h-7 text-spark-text-muted" />
+            </div>
+            <h3 className="text-base font-semibold text-spark-text-primary mb-1">
+              {searchQuery ? 'No matches' : 'No contacts yet'}
+            </h3>
+            <p className="text-spark-text-muted text-sm text-center max-w-xs">
+              {searchQuery ? 'Try a different search term.' : 'Add contacts to quickly send payments.'}
+            </p>
+          </div>
+        ) : (
+          <div className="space-y-0.5 max-h-[340px] overflow-y-auto scrollbar-hidden">
+            {filteredContacts.map((contact) => (
+              <div
+                key={contact.id}
+                className="flex items-center gap-3 px-3 py-2.5 rounded-xl hover:bg-white/5 transition-colors group"
+              >
+                {/* Avatar */}
+                <div className="w-9 h-9 rounded-full bg-spark-primary/15 flex items-center justify-center flex-shrink-0">
+                  <span className="text-spark-primary font-display font-bold text-sm">
+                    {contact.name.charAt(0).toUpperCase()}
+                  </span>
+                </div>
+
+                {/* Info - tap to select */}
+                <button
+                  className="flex-1 min-w-0 text-left"
+                  onClick={() => onSelect(contact.paymentIdentifier)}
+                >
+                  <p className="text-[15px] font-medium text-spark-text-primary truncate">
+                    {contact.name}
+                  </p>
+                  <p className="text-xs text-spark-text-muted truncate">
+                    {contact.paymentIdentifier}
+                  </p>
+                </button>
+
+                {/* Actions — subtle until hover/focus */}
+                <div className="flex items-center gap-0.5 flex-shrink-0 md:opacity-50 md:group-hover:opacity-100 transition-opacity">
+                  <button
+                    onClick={() => handleStartEdit(contact)}
+                    className="p-1.5 text-spark-text-muted hover:text-spark-text-primary rounded-lg hover:bg-white/5 transition-colors"
+                    aria-label={`Edit ${contact.name}`}
+                  >
+                    <EditPencilIcon />
+                  </button>
+                  <button
+                    onClick={() => setDeletingContact(contact)}
+                    className="p-1.5 text-spark-text-muted hover:text-spark-error rounded-lg hover:bg-white/5 transition-colors"
+                    aria-label={`Delete ${contact.name}`}
+                  >
+                    <TrashIcon />
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
       </div>
 
-      {/* Add/Edit form */}
-      {(showAddForm || editingContact) && (
-        <div className="bg-spark-dark border border-spark-border rounded-2xl p-4 space-y-3 mb-3">
-          <h3 className="font-display font-semibold text-spark-text-primary text-sm">
+      {/* Add/Edit form view — slides in from right */}
+      <div
+        className={`transition-all duration-200 ease-out ${
+          isFormOpen
+            ? 'relative opacity-100 translate-x-0'
+            : 'absolute inset-0 opacity-0 translate-x-full pointer-events-none'
+        }`}
+      >
+        {/* Header */}
+        <div className="flex items-center gap-3 mb-6">
+          <button
+            onClick={resetForm}
+            className="p-1.5 text-spark-text-muted hover:text-spark-text-primary rounded-lg hover:bg-white/5 transition-colors"
+          >
+            <BackIcon />
+          </button>
+          <h2 className="font-display text-lg font-bold text-spark-text-primary">
             {editingContact ? 'Edit Contact' : 'New Contact'}
-          </h3>
-          <FormInput
-            id="subview-contact-name"
-            value={formName}
-            onChange={(e) => setFormName(e.target.value)}
-            placeholder="Name"
-            disabled={isSaving}
-          />
-          <FormInput
-            id="subview-contact-address"
-            value={formAddress}
-            onChange={(e) => setFormAddress(e.target.value)}
-            placeholder="user@domain.com"
-            disabled={isSaving}
-          />
+          </h2>
+        </div>
+
+        {/* Form */}
+        <div className="space-y-4">
+          <div className="space-y-1.5">
+            <label htmlFor="subview-contact-name" className="text-sm text-spark-text-secondary font-medium">Name</label>
+            <input
+              ref={nameInputRef}
+              id="subview-contact-name"
+              value={formName}
+              onChange={(e) => setFormName(e.target.value)}
+              placeholder="Contact name"
+              disabled={isSaving}
+              className="w-full bg-spark-dark border border-spark-border rounded-xl px-4 py-3 text-spark-text-primary placeholder-spark-text-muted focus:border-spark-primary focus:ring-0 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+            />
+          </div>
+          <div className="space-y-1.5">
+            <label htmlFor="subview-contact-address" className="text-sm text-spark-text-secondary font-medium">Lightning Address</label>
+            <FormInput
+              id="subview-contact-address"
+              value={formAddress}
+              onChange={(e) => setFormAddress(e.target.value)}
+              placeholder="user@domain.com"
+              disabled={isSaving}
+            />
+          </div>
           <FormError error={formError} />
-          <div className="flex gap-2">
+          <div className="flex gap-3 pt-2">
             <button
               onClick={resetForm}
-              className="flex-1 py-2.5 text-sm font-medium border border-spark-border text-spark-text-secondary rounded-xl hover:text-spark-text-primary transition-colors"
+              className="flex-1 py-3 text-sm font-medium border border-spark-border text-spark-text-secondary rounded-xl hover:text-spark-text-primary transition-colors"
             >
               Cancel
             </button>
@@ -146,73 +273,7 @@ const ContactsSubView: React.FC<ContactsSubViewProps> = ({ onSelect, onBack }) =
             </PrimaryButton>
           </div>
         </div>
-      )}
-
-      {/* Contact list */}
-      {isLoading ? (
-        <div className="flex items-center justify-center py-12">
-          <div className="w-6 h-6 border-2 border-spark-primary border-t-transparent rounded-full animate-spin" />
-        </div>
-      ) : filteredContacts.length === 0 ? (
-        <div className="flex flex-col items-center justify-center py-12 px-6">
-          <div className="w-14 h-14 rounded-2xl bg-spark-surface border border-spark-border flex items-center justify-center mb-3">
-            <ContactsIcon className="w-7 h-7 text-spark-text-muted" />
-          </div>
-          <h3 className="text-base font-semibold text-spark-text-primary mb-1">
-            {searchQuery ? 'No matches' : 'No contacts yet'}
-          </h3>
-          <p className="text-spark-text-muted text-sm text-center max-w-xs">
-            {searchQuery ? 'Try a different search term.' : 'Add contacts to quickly send payments.'}
-          </p>
-        </div>
-      ) : (
-        <div className="space-y-0.5 max-h-[340px] overflow-y-auto">
-          {filteredContacts.map((contact) => (
-            <div
-              key={contact.id}
-              className="flex items-center gap-3 px-3 py-2.5 rounded-xl hover:bg-white/5 transition-colors"
-            >
-              {/* Avatar */}
-              <div className="w-9 h-9 rounded-full bg-spark-primary/15 flex items-center justify-center flex-shrink-0">
-                <span className="text-spark-primary font-display font-bold text-sm">
-                  {contact.name.charAt(0).toUpperCase()}
-                </span>
-              </div>
-
-              {/* Info - tap to select */}
-              <button
-                className="flex-1 min-w-0 text-left"
-                onClick={() => onSelect(contact.paymentIdentifier)}
-              >
-                <p className="text-[15px] font-medium text-spark-text-primary truncate">
-                  {contact.name}
-                </p>
-                <p className="text-xs text-spark-text-muted truncate">
-                  {contact.paymentIdentifier}
-                </p>
-              </button>
-
-              {/* Actions */}
-              <div className="flex items-center gap-0.5 flex-shrink-0">
-                <button
-                  onClick={() => handleStartEdit(contact)}
-                  className="p-1.5 text-spark-text-muted hover:text-spark-text-primary rounded-lg hover:bg-white/5 transition-colors"
-                  aria-label="Edit contact"
-                >
-                  <EditPencilIcon />
-                </button>
-                <button
-                  onClick={() => setDeletingContact(contact)}
-                  className="p-1.5 text-spark-text-muted hover:text-spark-error rounded-lg hover:bg-white/5 transition-colors"
-                  aria-label="Delete contact"
-                >
-                  <TrashIcon />
-                </button>
-              </div>
-            </div>
-          ))}
-        </div>
-      )}
+      </div>
 
       {/* Delete confirmation */}
       <ConfirmDialog

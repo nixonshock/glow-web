@@ -33,12 +33,14 @@ const SendPaymentDialog: React.FC<SendPaymentDialogProps> = ({ isOpen, onClose, 
   const send = useSendPayment();
   const { findContactByAddress } = useContactsContext();
   const [showContactsView, setShowContactsView] = useState(false);
+  const [selectedContactAddress, setSelectedContactAddress] = useState<string | null>(null);
 
   // Reset state when dialog opens, or process initial data
   useEffect(() => {
     if (isOpen) {
       send.reset();
       setShowContactsView(false);
+      setSelectedContactAddress(null);
       if (initialRawInput) {
         void (async () => {
           try {
@@ -78,18 +80,36 @@ const SendPaymentDialog: React.FC<SendPaymentDialogProps> = ({ isOpen, onClose, 
   const lnurlAuthDetails = getLnurlAuthRequestDetails(send.paymentInput);
 
   return (
-    <BottomSheetContainer isOpen={isOpen} onClose={handleClose}>
+    <BottomSheetContainer isOpen={isOpen} onClose={handleClose} showBackdrop>
       <BottomSheetCard>
-        {showContactsView ? (
-          <ContactsSubView
-            onBack={() => setShowContactsView(false)}
-            onSelect={(address) => {
-              setShowContactsView(false);
-              send.processInput(address);
-            }}
-          />
-        ) : (
-          <>
+        <div className="relative overflow-hidden">
+          {/* Contacts sub-view — slides in from right */}
+          <div
+            className={`transition-all duration-200 ease-out ${
+              showContactsView
+                ? 'relative opacity-100 translate-x-0'
+                : 'absolute inset-0 opacity-0 translate-x-full pointer-events-none'
+            }`}
+          >
+            {showContactsView && (
+              <ContactsSubView
+                onBack={() => setShowContactsView(false)}
+                onSelect={(address) => {
+                  setShowContactsView(false);
+                  setSelectedContactAddress(address);
+                }}
+              />
+            )}
+          </div>
+
+          {/* Main send view — slides out to left */}
+          <div
+            className={`transition-all duration-200 ease-out ${
+              showContactsView
+                ? 'absolute inset-0 opacity-0 -translate-x-full pointer-events-none'
+                : 'relative opacity-100 translate-x-0'
+            }`}
+          >
             <DialogHeader
               title={dialogTitle}
               onClose={handleClose}
@@ -99,8 +119,10 @@ const SendPaymentDialog: React.FC<SendPaymentDialogProps> = ({ isOpen, onClose, 
             {send.currentStep === 'input' && (
               <InputStep
                 paymentInput={send.paymentInput?.rawInput || ''}
+                selectedContactAddress={selectedContactAddress}
                 isLoading={send.isLoading}
                 error={send.error}
+                onClearError={send.clearError}
                 onContinue={(input) => send.processInput(input)}
                 onScanQr={onScanQr}
                 onOpenContacts={() => setShowContactsView(true)}
@@ -186,8 +208,8 @@ const SendPaymentDialog: React.FC<SendPaymentDialogProps> = ({ isOpen, onClose, 
                 operationType={send.paymentInput?.parsedInput.type === 'lnurlAuth' ? 'auth' : 'payment'}
               />
             )}
-          </>
-        )}
+          </div>
+        </div>
       </BottomSheetCard>
     </BottomSheetContainer>
   );

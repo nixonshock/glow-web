@@ -19,6 +19,7 @@ export interface UseSendPaymentReturn {
   balanceSats: number | undefined;
   feesIncluded: boolean;
   // Actions
+  clearError: () => void;
   reset: () => void;
   processInput: (input?: string | null) => Promise<void>;
   onAmountNext: (amountNum: number, includeFees?: boolean) => Promise<void>;
@@ -179,6 +180,7 @@ export function useSendPayment(): UseSendPaymentReturn {
     paymentResult,
     balanceSats,
     feesIncluded,
+    clearError: useCallback(() => setError(null), []),
     reset,
     processInput,
     onAmountNext,
