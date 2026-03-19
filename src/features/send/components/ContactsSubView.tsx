@@ -13,7 +13,7 @@ interface ContactsSubViewProps {
 
 const ContactsSubView: React.FC<ContactsSubViewProps> = ({ onSelect, onBack }) => {
   const wallet = useWallet();
-  const { contacts, isLoading, addContact, updateContact, deleteContact } = useContactsContext();
+  const { contacts, isLoading, hasSynced, addContact, updateContact, deleteContact } = useContactsContext();
   const [searchQuery, setSearchQuery] = useState('');
   const [showAddForm, setShowAddForm] = useState(false);
   const [editingContact, setEditingContact] = useState<Contact | null>(null);
@@ -143,7 +143,7 @@ const ContactsSubView: React.FC<ContactsSubViewProps> = ({ onSelect, onBack }) =
         </div>
 
         {/* Contact list */}
-        {isLoading ? (
+        {isLoading || (!hasSynced && contacts.length === 0) ? (
           <div className="flex items-center justify-center py-12">
             <div className="w-6 h-6 border-2 border-spark-primary border-t-transparent rounded-full animate-spin" />
           </div>

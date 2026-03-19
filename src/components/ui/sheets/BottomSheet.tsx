@@ -1,4 +1,4 @@
-import React, { ReactNode, forwardRef, useState, useRef, useCallback, useEffect } from 'react';
+import React, { ReactNode, createContext, forwardRef, useContext, useState, useRef, useCallback, useEffect } from 'react';
 import { Transition } from '@headlessui/react';
 
 /**
@@ -319,6 +319,9 @@ export const BottomSheetContainer: React.FC<BottomSheetContainerProps> = ({
   );
 };
 
+const BottomSheetCardContext = createContext<HTMLDivElement | null>(null);
+export const useBottomSheetCardEl = () => useContext(BottomSheetCardContext);
+
 export interface BottomSheetCardProps {
   children: ReactNode;
   className?: string;
@@ -334,24 +337,31 @@ export const BottomSheetCard = forwardRef<HTMLDivElement, BottomSheetCardProps>(
   (props, ref) => {
     const { children, className = "", ...rest } = props as BottomSheetCardInternalProps;
     const { _expanded, _isFullScreen, _onHandlePointerDown } = rest;
+    const [cardEl, setCardEl] = useState<HTMLDivElement | null>(null);
 
     return (
-      <div
-        ref={ref}
-        className={`bottom-sheet-card bg-spark-surface border-spark-border shadow-glass-lg overflow-hidden w-full ${_expanded ? 'h-full flex flex-col' : 'max-h-[85dvh] flex flex-col'} ${_isFullScreen ? 'rounded-none' : 'bottom-sheet-card-bordered'} ${className}`}
-      >
-        {/* Handle hit area: large touch target, small visual indicator */}
+      <BottomSheetCardContext.Provider value={cardEl}>
         <div
-          className="bottom-sheet-handle-zone flex-shrink-0"
-          onPointerDown={_onHandlePointerDown}
-          style={{ touchAction: 'none' }}
+          ref={(el) => {
+            setCardEl(el);
+            if (typeof ref === 'function') ref(el);
+            else if (ref) ref.current = el;
+          }}
+          className={`relative bottom-sheet-card bg-spark-surface border-spark-border shadow-glass-lg overflow-hidden w-full ${_expanded ? 'h-full flex flex-col' : 'max-h-[85dvh] flex flex-col'} ${_isFullScreen ? 'rounded-none' : 'bottom-sheet-card-bordered'} ${className}`}
         >
-          <div className="bottom-sheet-handle" />
+          {/* Handle hit area: large touch target, small visual indicator */}
+          <div
+            className="bottom-sheet-handle-zone flex-shrink-0"
+            onPointerDown={_onHandlePointerDown}
+            style={{ touchAction: 'none' }}
+          >
+            <div className="bottom-sheet-handle" />
+          </div>
+          <div className="pt-3 flex-1 overflow-y-auto min-h-0 scrollbar-hidden">
+            {children}
+          </div>
         </div>
-        <div className="pt-3 flex-1 overflow-y-auto min-h-0 scrollbar-hidden">
-          {children}
-        </div>
-      </div>
+      </BottomSheetCardContext.Provider>
     );
   }
 );

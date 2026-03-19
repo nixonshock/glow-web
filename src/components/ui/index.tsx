@@ -1,4 +1,5 @@
 import React, { ReactNode, forwardRef } from 'react';
+import { createPortal } from 'react-dom';
 import { logger, LogCategory } from '@/services/logger';
 import {
   CloseIcon,
@@ -39,7 +40,8 @@ export {
 export type { FormInputProps, FormTextareaProps } from './forms';
 
 // Bottom Sheets
-export { BottomSheetContainer, BottomSheetCard } from './sheets/BottomSheet';
+import { useBottomSheetCardEl } from './sheets/BottomSheet';
+export { BottomSheetContainer, BottomSheetCard, useBottomSheetCardEl } from './sheets/BottomSheet';
 export type { BottomSheetMaxWidth, BottomSheetContainerProps, BottomSheetCardProps } from './sheets/BottomSheet';
 
 // Loading
@@ -475,6 +477,8 @@ export const ConfirmDialog: React.FC<{
   onConfirm,
   onCancel,
 }) => {
+    const cardEl = useBottomSheetCardEl();
+
     if (!isOpen) return null;
 
     const confirmButtonStyles = {
@@ -483,8 +487,8 @@ export const ConfirmDialog: React.FC<{
       default: 'bg-spark-primary hover:bg-spark-primary-light text-white',
     };
 
-    return (
-      <DialogContainer>
+    const content = (
+      <div className="absolute inset-0 bg-spark-void/80 backdrop-blur-sm flex items-center justify-center z-50 p-4 transition-opacity duration-300">
         <DialogCard maxWidth="sm">
           <div className="text-center">
             <h3 className="font-display text-lg font-bold text-spark-text-primary mb-3">
@@ -511,8 +515,10 @@ export const ConfirmDialog: React.FC<{
             </div>
           </div>
         </DialogCard>
-      </DialogContainer>
+      </div>
     );
+
+    return cardEl ? createPortal(content, cardEl) : content;
   };
 
 // ============================================

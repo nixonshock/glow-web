@@ -22,6 +22,7 @@ export function filterContacts(contacts: Contact[], query: string): Contact[] {
 export interface UseContactsReturn {
   contacts: Contact[];
   isLoading: boolean;
+  hasSynced: boolean;
   error: string | null;
   addContact: (name: string, paymentIdentifier: string) => Promise<Contact | null>;
   updateContact: (id: string, name: string, paymentIdentifier: string) => Promise<Contact | null>;
@@ -34,6 +35,7 @@ export function useContacts(): UseContactsReturn {
   const wallet = useWallet();
   const [contacts, setContacts] = useState<Contact[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [hasSynced, setHasSynced] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const refreshContacts = useCallback(async () => {
@@ -68,6 +70,7 @@ export function useContacts(): UseContactsReturn {
       try {
         const id = await wallet.addEventListener({ onEvent: (event: SdkEvent) => {
           if (event.type === 'synced') {
+            setHasSynced(true);
             void refreshContacts();
           }
         } });
@@ -146,6 +149,7 @@ export function useContacts(): UseContactsReturn {
   return {
     contacts,
     isLoading,
+    hasSynced,
     error,
     addContact,
     updateContact,
