@@ -138,107 +138,109 @@ const ReceivePaymentDialog: React.FC<ReceivePaymentDialogProps> = ({ isOpen, onC
   };
 
   return (
-    <BottomSheetContainer isOpen={isOpen} onClose={onClose} showBackdrop>
-      <BottomSheetCard>
-        <DialogHeader
-          title="Receive"
-          onClose={onClose}
-          icon={<ArrowDownIcon />}
-        />
-
-        <TabContainer>
-          <TabList>
-            <Tab isActive={receive.activeTab === 'lightning'} onClick={() => handleTabChange('lightning')} data-testid="lightning-tab">
-              <LightningBoltIcon size="sm" />
-              Lightning
-            </Tab>
-            <Tab isActive={receive.activeTab === 'bitcoin'} onClick={() => handleTabChange('bitcoin')} data-testid="bitcoin-tab">
-              <span className="font-bold text-sm">₿</span>
-              Bitcoin
-            </Tab>
-          </TabList>
-
-          <StepContainer>
-            {receive.currentStep === 'loading_limits' && (
-              <div className="flex flex-col items-center justify-center h-40">
-                <LoadingSpinner />
-              </div>
-            )}
-
-            {receive.currentStep === 'input' && (
-              <div className="pt-6">
-                {receive.activeTab === 'lightning' && (
-                  <LightningAddressDisplay
-                    address={lightningAddress}
-                    isLoading={lightningAddressLoading}
-                    isEditing={isEditingLightningAddress}
-                    editValue={lightningAddressEditValue}
-                    error={lightningAddressError}
-                    isSupported={isLightningAddressSupported}
-                    supportMessage={lightningAddressSupportMessage}
-                    onEdit={() => beginEditLightningAddress(lightningAddress)}
-                    onSave={handleSaveLightningAddress}
-                    onCancel={() => cancelEditLightningAddress()}
-                    onEditValueChange={setLightningAddressEditValue}
-                    onCustomizeAmount={() => receive.setShowAmountPanel(true)}
-                  />
-                )}
-
-                {receive.activeTab === 'spark' && (
-                  <SparkAddressDisplay address={receive.sparkAddress} isLoading={receive.sparkLoading} />
-                )}
-
-                {receive.activeTab === 'bitcoin' && (
-                  <BitcoinAddressDisplay address={receive.bitcoinAddress} isLoading={receive.bitcoinLoading} />
-                )}
-              </div>
-            )}
-
-            {receive.currentStep === 'loading' && (
-              <div className="flex flex-col items-center justify-center h-40" data-testid="invoice-generation-loading">
-                <LoadingSpinner text={`Generating ${getQRTitle().toLowerCase()}...`} />
-              </div>
-            )}
-
-            {receive.currentStep === 'qr' && (
-              <QRCodeDisplay
-                paymentData={receive.paymentData}
-                feeSats={receive.feeSats}
-                title={getQRTitle()}
-                description={getQRDescription()}
-              />
-            )}
-          </StepContainer>
-
-          <AmountPanel
-            isOpen={receive.activeTab === 'lightning' && receive.showAmountPanel}
-            amount={receive.amount}
-            setAmount={receive.setAmount}
-            description={receive.description}
-            setDescription={receive.setDescription}
-            limits={{ min: 1, max: 1000000 }}
-            isLoading={receive.isLoading}
-            error={receive.error}
-            onCreateInvoice={receive.generateBolt11Invoice}
-            onClose={() => receive.setShowAmountPanel(false)}
+    <>
+      <BottomSheetContainer isOpen={isOpen} onClose={onClose} showBackdrop>
+        <BottomSheetCard>
+          <DialogHeader
+            title="Receive"
+            onClose={onClose}
+            icon={<ArrowDownIcon />}
           />
-        </TabContainer>
-      </BottomSheetCard>
 
-      <ConfirmDialog
-        isOpen={showChangeConfirm}
-        title="Confirm Username Change"
-        message={getAddressChangeMessage()}
-        confirmLabel="Change"
-        cancelLabel="Cancel"
-        variant="warning"
-        onConfirm={async () => {
-          setShowChangeConfirm(false);
-          await saveLightningAddress();
-        }}
-        onCancel={() => setShowChangeConfirm(false)}
+          <TabContainer>
+            <TabList>
+              <Tab isActive={receive.activeTab === 'lightning'} onClick={() => handleTabChange('lightning')} data-testid="lightning-tab">
+                <LightningBoltIcon size="sm" />
+                Lightning
+              </Tab>
+              <Tab isActive={receive.activeTab === 'bitcoin'} onClick={() => handleTabChange('bitcoin')} data-testid="bitcoin-tab">
+                <span className="font-bold text-sm">₿</span>
+                Bitcoin
+              </Tab>
+            </TabList>
+
+            <StepContainer>
+              {receive.currentStep === 'loading_limits' && (
+                <div className="flex flex-col items-center justify-center h-40">
+                  <LoadingSpinner />
+                </div>
+              )}
+
+              {receive.currentStep === 'input' && (
+                <div className="pt-6">
+                  {receive.activeTab === 'lightning' && (
+                    <LightningAddressDisplay
+                      address={lightningAddress}
+                      isLoading={lightningAddressLoading}
+                      isEditing={isEditingLightningAddress}
+                      editValue={lightningAddressEditValue}
+                      error={lightningAddressError}
+                      isSupported={isLightningAddressSupported}
+                      supportMessage={lightningAddressSupportMessage}
+                      onEdit={() => beginEditLightningAddress(lightningAddress)}
+                      onSave={handleSaveLightningAddress}
+                      onCancel={() => cancelEditLightningAddress()}
+                      onEditValueChange={setLightningAddressEditValue}
+                      onCustomizeAmount={() => receive.setShowAmountPanel(true)}
+                    />
+                  )}
+
+                  {receive.activeTab === 'spark' && (
+                    <SparkAddressDisplay address={receive.sparkAddress} isLoading={receive.sparkLoading} />
+                  )}
+
+                  {receive.activeTab === 'bitcoin' && (
+                    <BitcoinAddressDisplay address={receive.bitcoinAddress} isLoading={receive.bitcoinLoading} />
+                  )}
+                </div>
+              )}
+
+              {receive.currentStep === 'loading' && (
+                <div className="flex flex-col items-center justify-center h-40" data-testid="invoice-generation-loading">
+                  <LoadingSpinner text={`Generating ${getQRTitle().toLowerCase()}...`} />
+                </div>
+              )}
+
+              {receive.currentStep === 'qr' && (
+                <QRCodeDisplay
+                  paymentData={receive.paymentData}
+                  feeSats={receive.feeSats}
+                  title={getQRTitle()}
+                  description={getQRDescription()}
+                />
+              )}
+            </StepContainer>
+          </TabContainer>
+        </BottomSheetCard>
+
+        <ConfirmDialog
+          isOpen={showChangeConfirm}
+          title="Confirm Username Change"
+          message={getAddressChangeMessage()}
+          confirmLabel="Change"
+          cancelLabel="Cancel"
+          variant="warning"
+          onConfirm={async () => {
+            setShowChangeConfirm(false);
+            await saveLightningAddress();
+          }}
+          onCancel={() => setShowChangeConfirm(false)}
+        />
+      </BottomSheetContainer>
+
+      <AmountPanel
+        isOpen={isOpen && receive.activeTab === 'lightning' && receive.showAmountPanel}
+        amount={receive.amount}
+        setAmount={receive.setAmount}
+        description={receive.description}
+        setDescription={receive.setDescription}
+        limits={{ min: 1, max: 1000000 }}
+        isLoading={receive.isLoading}
+        error={receive.error}
+        onCreateInvoice={receive.generateBolt11Invoice}
+        onClose={() => receive.setShowAmountPanel(false)}
       />
-    </BottomSheetContainer>
+    </>
   );
 };
 
