@@ -5,8 +5,6 @@ import type {
   GetInfoResponse,
   Payment,
   SdkEvent,
-  Rate,
-  FiatCurrency,
   DepositInfo,
   LogEntry,
   Seed,
@@ -17,6 +15,7 @@ import { buildConnectConfig } from './buildConnectConfig';
 import { logger, LogCategory, logSdkMessage } from '../services/logger';
 import { formatError } from '../utils/formatError';
 import { isDepositRejected } from '../services/depositState';
+import { setCachedStableTicker } from '../services/settings';
 import { hideSplash } from '../main';
 import {
   isPrfAvailable,
@@ -26,6 +25,19 @@ import {
   getWallet,
 } from '../services/passkeyService';
 
+
+// ============================================
+// Payment filtering
+// ============================================
+
+/** Filter out ongoing payment conversions not yet linked */
+function filterOngoingConversionPayments(payments: Payment[]): Payment[] {
+  return payments.filter(p => {
+    const conversionInfo = p.details &&
+      'conversionInfo' in p.details ? p.details.conversionInfo : null;
+    return conversionInfo?.purpose?.type !== 'ongoingPayment';
+  });
+}
 
 // ============================================
 // SDK logging (initialized once)
@@ -60,12 +72,10 @@ export interface BreezSdkState {
   walletInfo: GetInfoResponse | null;
   transactions: Payment[];
   unclaimedDeposits: DepositInfo[];
-  fiatRates: Rate[];
-  fiatCurrencies: FiatCurrency[];
   config: Config | null;
   error: string | null;
   hasRejectedDeposits: boolean;
-  celebrationAmount: number | null;
+  celebrationPayment: Payment | null;
   prfAvailable: boolean;
 }
 
@@ -85,6 +95,7 @@ export interface BreezSdkActions {
 
 export function useBreezSdk(
   showToast: (type: 'success' | 'error' | 'info', title: string, message?: string) => void,
+  formatPaymentAmountRef?: React.MutableRefObject<((payment: Payment) => string) | undefined>,
 ): BreezSdkState & BreezSdkActions {
   // Core state
   const [sdk, setSdk] = useState<BreezSdk | null>(null);
@@ -95,11 +106,9 @@ export function useBreezSdk(
   const [transactions, setTransactions] = useState<Payment[]>([]);
   const [unclaimedDeposits, setUnclaimedDeposits] = useState<DepositInfo[]>([]);
   const [error, setError] = useState<string | null>(null);
-  const [fiatRates, setFiatRates] = useState<Rate[]>([]);
-  const [fiatCurrencies, setFiatCurrencies] = useState<FiatCurrency[]>([]);
   const [config, setConfig] = useState<Config | null>(null);
   const [hasRejectedDeposits, setHasRejectedDeposits] = useState(false);
-  const [celebrationAmount, setCelebrationAmount] = useState<number | null>(null);
+  const [celebrationPayment, setCelebrationPayment] = useState<Payment | null>(null);
   const [prfAvailable, setPrfAvailable] = useState(false);
 
   // Refs
@@ -126,7 +135,7 @@ export function useBreezSdk(
         s.listPayments({ offset: 0, limit: 100 }),
       ]);
       setWalletInfo(info);
-      setTransactions(txns.payments);
+      setTransactions(filterOngoingConversionPayments(txns.payments));
     } catch (e) {
       logger.error(LogCategory.SDK, 'Error refreshing wallet data', { error: formatError(e) });
       setError('Failed to refresh wallet data.');
@@ -150,21 +159,6 @@ export function useBreezSdk(
     }
   }, [sdkRef]);
 
-  const fetchFiatData = useCallback(async () => {
-    const s = sdkRef.current;
-    if (!s) return;
-    try {
-      const [ratesResult, currenciesResult] = await Promise.all([
-        s.listFiatRates(),
-        s.listFiatCurrencies(),
-      ]);
-      setFiatRates(ratesResult.rates);
-      setFiatCurrencies(currenciesResult.currencies);
-    } catch (e) {
-      logger.warn(LogCategory.SDK, 'Failed to fetch fiat data', { error: formatError(e) });
-    }
-  }, [sdkRef]);
-
   // ----------------------------------------
   // SDK event handler
   // ----------------------------------------
@@ -182,15 +176,30 @@ export function useBreezSdk(
       fetchUnclaimedDeposits();
     } else if (event.type === 'paymentSucceeded') {
       const paymentId = event.payment.id;
-      if (!shownPaymentIdsRef.current.has(paymentId)) {
+      const alreadyShown = shownPaymentIdsRef.current.has(paymentId);
+      logger.debug(LogCategory.PAYMENT, 'Payment succeeded event received', {
+        alreadyShown,
+        payment: JSON.parse(JSON.stringify(event.payment)),
+      });
+      if (!alreadyShown) {
         shownPaymentIdsRef.current.add(paymentId);
         setTimeout(() => shownPaymentIdsRef.current.delete(paymentId), 30000);
 
         const isReceived = event.payment.paymentType === 'receive';
-        const amountSats = Number(event.payment.amount);
+        const hasConversionInfo = event.payment.details &&
+          'conversionInfo' in event.payment.details &&
+          event.payment.details.conversionInfo != null;
 
-        if (isReceived) {
-          setCelebrationAmount(amountSats);
+        if (!hasConversionInfo) {
+          if (isReceived) {
+            setCelebrationPayment(event.payment);
+          } else {
+            const formatter = formatPaymentAmountRef?.current;
+            const formattedAmount = formatter
+              ? formatter(event.payment)
+              : `${event.payment.amount} sats`;
+            showToastRef.current('success', 'Payment Sent', `${formattedAmount} sent successfully`);
+          }
         }
         // Send toast suppressed — ResultStep dialog already shows success
       }
@@ -257,7 +266,7 @@ export function useBreezSdk(
         connectedSdk.listPayments({ offset: 0, limit: 100 }),
       ]);
       setWalletInfo(info);
-      setTransactions(txns.payments);
+      setTransactions(filterOngoingConversionPayments(txns.payments));
 
       setIsConnected(true);
 
@@ -309,18 +318,17 @@ export function useBreezSdk(
     setSdk(null);
     clearMnemonic();
     clearPasskeyMode();
+    setCachedStableTicker(null);
     shownPaymentIdsRef.current.clear();
     setIsConnected(false);
     setIsSyncing(false);
     setWalletInfo(null);
     setTransactions([]);
     setUnclaimedDeposits([]);
-    setFiatRates([]);
-    setFiatCurrencies([]);
     setConfig(null);
     setError(null);
     setHasRejectedDeposits(false);
-    setCelebrationAmount(null);
+    setCelebrationPayment(null);
     setIsLoading(false);
     showToast('success', 'Successfully logged out');
   }, [sdk, showToast]);
@@ -328,7 +336,7 @@ export function useBreezSdk(
   const handleBuyBitcoin = useCallback(async () => {
     if (!sdk) return;
     try {
-      const response = await sdk.buyBitcoin({});
+      const response = await sdk.buyBitcoin({ type: 'moonpay' });
       window.open(response.url, '_blank', 'noopener,noreferrer');
     } catch (e) {
       logger.error(LogCategory.SDK, 'Failed to open Buy Bitcoin', { error: formatError(e) });
@@ -430,15 +438,6 @@ export function useBreezSdk(
     }
   }, [isConnected, sdk, handleSdkEvent]);
 
-  // Periodic fiat rate fetching
-  useEffect(() => {
-    if (isConnected) {
-      fetchFiatData();
-      const interval = setInterval(fetchFiatData, 60000);
-      return () => clearInterval(interval);
-    }
-  }, [isConnected, fetchFiatData]);
-
   return {
     // State
     sdk,
@@ -448,12 +447,10 @@ export function useBreezSdk(
     walletInfo,
     transactions,
     unclaimedDeposits,
-    fiatRates,
-    fiatCurrencies,
     config,
     error,
     hasRejectedDeposits,
-    celebrationAmount,
+    celebrationPayment,
     prfAvailable,
     // Actions
     connectWallet,
@@ -462,6 +459,6 @@ export function useBreezSdk(
     handleLogout,
     handleBuyBitcoin,
     clearError: () => setError(null),
-    dismissCelebration: () => setCelebrationAmount(null),
+    dismissCelebration: () => setCelebrationPayment(null),
   };
 }

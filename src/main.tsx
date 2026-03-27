@@ -4,6 +4,11 @@ import './index.css';
 import { logger, LogCategory } from '@/services/logger';
 import initBreezSDK from '@breeztech/breez-sdk-spark';
 
+// Allow JSON.stringify to handle BigInt values (e.g. payment amounts/fees from SDK)
+(BigInt.prototype as unknown as { toJSON: () => string }).toJSON = function () {
+  return this.toString();
+};
+
 // Hide the initial splash screen - exported so App can call it when truly ready
 export function hideSplash() {
   const splash = document.getElementById('splash');

@@ -1,5 +1,8 @@
 import React, { useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
+import type { Payment } from '@breeztech/breez-sdk-spark';
+import { useStableBalance } from '../contexts/StableBalanceContext';
+import { getTokenAmountFromPayment, formatTokenAmount } from '../utils/tokenFormatting';
 
 // Star positions around the logo (same as sidebar)
 const STARS = [
@@ -14,11 +17,12 @@ const STARS = [
 ];
 
 interface PaymentReceivedCelebrationProps {
-  amount: number;
+  payment: Payment;
   onClose: () => void;
 }
 
-const PaymentReceivedCelebration: React.FC<PaymentReceivedCelebrationProps> = ({ amount, onClose }) => {
+const PaymentReceivedCelebration: React.FC<PaymentReceivedCelebrationProps> = ({ payment, onClose }) => {
+  const stableBalance = useStableBalance();
   const [isVisible, setIsVisible] = useState(false);
   const [starsAnimating, setStarsAnimating] = useState(false);
 
@@ -41,9 +45,18 @@ const PaymentReceivedCelebration: React.FC<PaymentReceivedCelebrationProps> = ({
     };
   }, [onClose]);
 
-  const formatAmount = (sats: number) => {
+  const formatSatsAmount = (sats: number) => {
     return sats.toLocaleString('en-US').replace(/,/g, '\u2009');
   };
+
+  // Determine display: token amount or sats
+  let displayText: string | null = null;
+  if (stableBalance.isActive && stableBalance.displayConfig) {
+    const tokenInfo = getTokenAmountFromPayment(payment);
+    if (tokenInfo) {
+      displayText = formatTokenAmount(tokenInfo.amount, stableBalance.displayConfig);
+    }
+  }
 
   return createPortal(
     <div
@@ -75,7 +88,7 @@ const PaymentReceivedCelebration: React.FC<PaymentReceivedCelebrationProps> = ({
         <div className="relative mb-8">
           {/* Outer glow */}
           <div className="absolute -inset-4 rounded-full bg-spark-primary/30 blur-2xl" />
-          
+
           {/* Logo container */}
           <div className="relative w-28 h-28 flex items-center justify-center">
             <img
@@ -83,7 +96,7 @@ const PaymentReceivedCelebration: React.FC<PaymentReceivedCelebrationProps> = ({
               alt="Glow"
               className="w-24 h-24 object-contain drop-shadow-[0_0_30px_rgba(212,165,116,0.6)]"
             />
-            
+
             {/* Sparkle stars */}
             {STARS.map((star, i) => (
               <span
@@ -109,11 +122,21 @@ const PaymentReceivedCelebration: React.FC<PaymentReceivedCelebrationProps> = ({
         {/* Amount with brand glow */}
         <div className="relative animate-fade-in-up" style={{ animationDelay: '0.4s' }}>
           <div className="absolute inset-0 blur-xl bg-spark-primary/40 rounded-2xl" />
-          <div className="relative pl-14 pr-10 py-5 rounded-2xl bg-spark-surface/80 border border-spark-primary/30 text-center">
-            <span className="relative text-5xl font-mono font-bold text-spark-primary">
-              <span className="absolute right-full top-1/2 -translate-y-1/2 mr-0.5 text-3xl text-spark-primary opacity-70">₿</span>
-              {formatAmount(amount)}
-            </span>
+          <div className="relative px-10 py-5 rounded-2xl bg-spark-surface/80 border border-spark-primary/30 text-center">
+            {displayText ? (
+              <span className="text-5xl font-display font-bold text-spark-primary">
+                +{(() => {
+                  const match = displayText.match(/^([^\d-]+)(.*)/);
+                  if (match) return <><span className="text-3xl opacity-70">{match[1]}</span>{match[2]}</>;
+                  return displayText;
+                })()}
+              </span>
+            ) : (
+              <span className="relative text-5xl font-mono font-bold text-spark-primary">
+                <span className="absolute right-full top-1/2 -translate-y-1/2 mr-0.5 text-3xl text-spark-primary opacity-70">₿</span>
+                {formatSatsAmount(Number(payment.amount))}
+              </span>
+            )}
           </div>
         </div>
 

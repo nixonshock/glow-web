@@ -38,6 +38,11 @@ function setCachedItem(key: string, value: string): void {
   storageCache.set(key, value);
 }
 
+function removeCachedItem(key: string): void {
+  localStorage.removeItem(key);
+  storageCache.delete(key);
+}
+
 export function getSettings(): UserSettings {
   try {
     const raw = getCachedItem(SETTINGS_KEY);
@@ -80,8 +85,8 @@ export function getFiatSettings(): FiatSettings {
     if (!raw) return defaultFiatSettings;
     const parsed = JSON.parse(raw) as Partial<FiatSettings>;
     return {
-      selectedCurrencies: Array.isArray(parsed.selectedCurrencies) 
-        ? parsed.selectedCurrencies 
+      selectedCurrencies: Array.isArray(parsed.selectedCurrencies)
+        ? parsed.selectedCurrencies
         : defaultFiatSettings.selectedCurrencies,
     };
   } catch {
@@ -91,6 +96,32 @@ export function getFiatSettings(): FiatSettings {
 
 export function saveFiatSettings(settings: FiatSettings): void {
   setCachedItem(FIAT_SETTINGS_KEY, JSON.stringify(settings));
+}
+
+// Stable Balance disclaimer acceptance (one-time)
+const STABLE_DISCLAIMER_KEY = 'stable_balance_disclaimer_accepted';
+
+export function hasAcceptedStableDisclaimer(): boolean {
+  return getCachedItem(STABLE_DISCLAIMER_KEY) === 'true';
+}
+
+export function setStableDisclaimerAccepted(): void {
+  setCachedItem(STABLE_DISCLAIMER_KEY, 'true');
+}
+
+// Stable Balance active ticker cache (for instant UI on reload)
+const STABLE_TICKER_KEY = 'stable_balance_active_ticker';
+
+export function getCachedStableTicker(): string | null {
+  return getCachedItem(STABLE_TICKER_KEY);
+}
+
+export function setCachedStableTicker(ticker: string | null): void {
+  if (ticker) {
+    setCachedItem(STABLE_TICKER_KEY, ticker);
+  } else {
+    removeCachedItem(STABLE_TICKER_KEY);
+  }
 }
 
 /**

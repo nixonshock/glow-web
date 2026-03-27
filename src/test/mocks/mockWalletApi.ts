@@ -20,6 +20,7 @@ import type {
   UserSettings,
   FiatCurrency,
   Rate,
+  TokenMetadata,
 } from '@breeztech/breez-sdk-spark';
 
 // Store for event listeners
@@ -254,6 +255,9 @@ export function createMockClient(overrides?: Partial<BreezSdk>): BreezSdk {
 
     // Buy Bitcoin
     buyBitcoin: vi.fn().mockResolvedValue({ url: 'https://buy.moonpay.com/test' }),
+
+    // Token metadata
+    getTokensMetadata: vi.fn().mockResolvedValue([] as TokenMetadata[]),
   };
 
   return { ...defaultMock, ...overrides } as unknown as BreezSdk;

@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import LoadingSpinner from '../../components/LoadingSpinner';
 import {
   FormError,
@@ -8,6 +8,14 @@ import {
   DialogHeader,
 } from '../../components/ui';
 import { LightningBoltIcon } from '../../components/Icons';
+import { useStableBalance } from '../../contexts/StableBalanceContext';
+import {
+  TOKEN_QUICK_AMOUNTS,
+  formatQuickAmount,
+  sanitizeTokenInput,
+  fiatToSats,
+} from '../../utils/tokenFormatting';
+import CurrencySwitcher from '../../components/ui/CurrencySwitcher';
 
 interface AmountPanelProps {
   isOpen: boolean;
@@ -22,11 +30,7 @@ interface AmountPanelProps {
   onClose: () => void;
 }
 
-const formatWithSpaces = (num: number): string => {
-  return num.toLocaleString('en-US').replace(/,/g, '\u2009');
-};
-
-const QUICK_AMOUNTS = [100, 1000, 10000, 100000];
+const RECEIVE_QUICK_AMOUNTS_SATS = [100, 1000, 10000, 100000];
 
 const AmountPanel: React.FC<AmountPanelProps> = ({
   isOpen,
@@ -40,6 +44,53 @@ const AmountPanel: React.FC<AmountPanelProps> = ({
   onCreateInvoice,
   onClose,
 }) => {
+  const stableBalance = useStableBalance();
+  const hasTokenConfig = !!stableBalance.displayConfig;
+  const [isTokenMode, setIsTokenMode] = useState(stableBalance.isActive && hasTokenConfig);
+  const config = stableBalance.displayConfig;
+
+  // In token mode we show the fiat value locally; the parent's `amount` always holds sats.
+  const [displayAmount, setDisplayAmount] = useState('');
+
+  const handleToggleDenomination = () => {
+    setIsTokenMode(prev => !prev);
+    setAmount('');
+    setDisplayAmount('');
+  };
+
+  const quickAmounts = isTokenMode ? TOKEN_QUICK_AMOUNTS : RECEIVE_QUICK_AMOUNTS_SATS;
+
+  const handleAmountChange = (value: string) => {
+    if (isTokenMode && config) {
+      const sanitized = sanitizeTokenInput(value, config.fractionSize);
+      if (sanitized !== null) {
+        setDisplayAmount(sanitized);
+        const fiat = parseFloat(sanitized);
+        if (fiat > 0 && stableBalance.btcFiatRate > 0) {
+          setAmount(String(fiatToSats(fiat, stableBalance.btcFiatRate)));
+        } else {
+          setAmount('');
+        }
+      }
+    } else {
+      const sats = value.replace(/[^0-9]/g, '');
+      setAmount(sats);
+      setDisplayAmount(sats);
+    }
+  };
+
+  const handleQuickAmount = (quickAmount: number) => {
+    if (isTokenMode && stableBalance.btcFiatRate > 0) {
+      setDisplayAmount(String(quickAmount));
+      setAmount(String(fiatToSats(quickAmount, stableBalance.btcFiatRate)));
+    } else {
+      setDisplayAmount(String(quickAmount));
+      setAmount(String(quickAmount));
+    }
+  };
+
+  const validAmount = amount !== '' && parseInt(amount) > 0;
+
   return (
     <BottomSheetContainer isOpen={isOpen} onClose={onClose} showBackdrop>
       <BottomSheetCard>
@@ -52,40 +103,49 @@ const AmountPanel: React.FC<AmountPanelProps> = ({
         {/* Amount Input */}
         <div className="space-y-4">
           <div>
-            <label className="block text-spark-text-secondary text-sm font-medium mb-2">Amount</label>
-            <div className="flex items-center bg-spark-dark border border-spark-border rounded-xl overflow-hidden focus-within:border-spark-primary transition-all">
+            <label className="block text-spark-text-secondary text-sm font-medium mb-2">
+              Amount
+            </label>
+            <div className="relative">
               <textarea
-                inputMode="numeric"
-                value={amount}
-                onChange={(e) => setAmount(e.target.value.replace(/[^0-9]/g, ''))}
+                inputMode={isTokenMode ? 'decimal' : 'numeric'}
+                value={displayAmount}
+                onChange={(e) => handleAmountChange(e.target.value)}
                 onKeyDown={(e) => e.key === 'Enter' && e.preventDefault()}
-                placeholder="0"
+                placeholder={isTokenMode ? '0.00' : '0'}
                 disabled={isLoading}
                 rows={1}
-                className="flex-1 bg-transparent px-4 py-3 text-spark-text-primary text-lg font-mono placeholder-spark-text-muted focus:outline-none resize-none"
+                className="w-full bg-spark-dark border border-spark-border rounded-xl px-4 py-3 pr-16 text-spark-text-primary text-lg font-mono placeholder-spark-text-muted focus-within:border-spark-primary focus:outline-none transition-all resize-none"
                 data-testid="invoice-amount-input"
               />
-              <span className="px-4 py-3 text-spark-text-muted font-medium text-sm">₿</span>
+              {hasTokenConfig && config && (
+                <CurrencySwitcher
+                  isTokenMode={isTokenMode}
+                  tokenSymbol={config.symbol}
+                  onSwitch={handleToggleDenomination}
+                  disabled={isLoading}
+                />
+              )}
             </div>
           </div>
 
           {/* Quick amount buttons */}
           <div className="flex gap-2">
-            {QUICK_AMOUNTS.map((quickAmount) => (
+            {quickAmounts.map((quickAmount) => (
               <button
                 key={quickAmount}
                 type="button"
-                onClick={() => setAmount(quickAmount.toString())}
+                onClick={() => handleQuickAmount(quickAmount)}
                 disabled={isLoading}
                 className={`
                   flex-1 py-2 rounded-lg text-sm font-mono font-medium transition-all
-                  ${amount === quickAmount.toString()
+                  ${displayAmount === String(quickAmount)
                     ? 'bg-spark-primary text-black'
                     : 'bg-spark-elevated border border-spark-border text-spark-text-secondary hover:text-spark-text-primary hover:border-spark-border-light'
                   }
                 `}
               >
-                <span className="inline-flex items-center"><span className="text-[0.8em] opacity-70 mr-px">₿</span>{formatWithSpaces(quickAmount)}</span>
+                {formatQuickAmount(quickAmount, config, isTokenMode)}
               </button>
             ))}
           </div>
@@ -110,7 +170,7 @@ const AmountPanel: React.FC<AmountPanelProps> = ({
           <PrimaryButton
             onClick={onCreateInvoice}
             type="submit"
-            disabled={isLoading || !amount}
+            disabled={isLoading || !validAmount}
             className="w-full"
             data-testid="generate-invoice-button"
           >
