@@ -1,9 +1,13 @@
 import React, { useMemo, useState, useCallback, useRef, useEffect } from 'react';
-import type { GetInfoResponse, Rate, FiatCurrency } from '@breeztech/breez-sdk-spark';
+import type { GetInfoResponse, FiatCurrency } from '@breeztech/breez-sdk-spark';
 import { getFiatSettings } from '../services/settings';
 import { formatWithThinSpaces } from '../utils/formatNumber';
 import { useAnimatedNumber } from '../hooks/useAnimatedNumber';
 import { MenuIcon, AlertTriangleIcon, CurrencyIcon } from './Icons';
+import { useStableBalance } from '../contexts/StableBalanceContext';
+import { useFiatData } from '../contexts/FiatDataContext';
+import { getTokenBalance, formatTokenAmount } from '../utils/tokenFormatting';
+import StableBalanceToggleFlow from './StableBalanceToggleFlow';
 
 // Module-level flag: once the balance count-up has played, skip it on remount.
 // Resets on full page reload.
@@ -11,12 +15,11 @@ let hasPlayedInitialAnimation = false;
 
 interface CollapsingWalletHeaderProps {
   walletInfo: GetInfoResponse | null;
-  fiatRates: Rate[];
-  fiatCurrencies: FiatCurrency[];
   scrollProgress: number;
   onOpenMenu: () => void;
   onOpenBuyBitcoin?: () => void;
   isSyncing?: boolean;
+  refreshWalletData?: () => Promise<void>;
   hasRejectedDeposits?: boolean;
   onOpenGetRefund?: () => void;
 }
@@ -24,15 +27,25 @@ interface CollapsingWalletHeaderProps {
 const CollapsingWalletHeader: React.FC<CollapsingWalletHeaderProps> = ({
   walletInfo,
   scrollProgress,
-  fiatRates,
-  fiatCurrencies,
   onOpenMenu,
   onOpenBuyBitcoin,
   isSyncing,
+  refreshWalletData,
   hasRejectedDeposits,
   onOpenGetRefund,
 }) => {
+  const { fiatRates, fiatCurrencies } = useFiatData();
+  const stableBalance = useStableBalance();
   const [activeFiatIndex, setActiveFiatIndex] = useState(0);
+  const [toggleFlowOpen, setToggleFlowOpen] = useState(false);
+  const [toggleDirection, setToggleDirection] = useState<'toToken' | 'toBitcoin'>('toToken');
+  const stableBalanceToggleVisible = localStorage.getItem('stable-balance-toggle-visible') === 'true';
+
+  const handleSuffixTap = useCallback(() => {
+    if (stableBalance.isToggling) return;
+    setToggleDirection(stableBalance.isActive ? 'toBitcoin' : 'toToken');
+    setToggleFlowOpen(true);
+  }, [stableBalance]);
 
   // Build lookup maps for O(1) access (js-index-maps optimization)
   const ratesMap = useMemo(() => {
@@ -87,26 +100,39 @@ const CollapsingWalletHeader: React.FC<CollapsingWalletHeaderProps> = ({
     }
   }, [fiatCurrencyInfo.length]);
 
-  const balanceSat = walletInfo?.balanceSats || 0;
-  
-  // Track when both balance and fiat are ready to trigger synced animation
-  const hasFiatData = fiatCurrencyInfo.length > 0;
+  // Compute balances
+  const btcBalanceSat = walletInfo?.balanceSats || 0;
+
+  const tokenBalanceInfo = useMemo(() => {
+    if (!stableBalance.isActive || !walletInfo?.tokenBalances || !stableBalance.tokenIdentifier) return null;
+    return getTokenBalance(walletInfo.tokenBalances, stableBalance.tokenIdentifier);
+  }, [stableBalance.isActive, walletInfo?.tokenBalances, stableBalance.tokenIdentifier]);
+
+  const tokenBalanceRaw = tokenBalanceInfo ? Number(tokenBalanceInfo.balance) : 0;
+
+  // Primary balance for animation (token base units or sats)
+  const primaryBalance = stableBalance.isActive ? tokenBalanceRaw : btcBalanceSat;
+
+  // Track when both balance and secondary data are ready to trigger synced animation
+  const hasSecondaryData = stableBalance.isActive
+    ? true
+    : fiatCurrencyInfo.length > 0;
   const skipAnimation = hasPlayedInitialAnimation;
   const [animationReady, setAnimationReady] = useState(skipAnimation);
   const hasTriggeredAnimation = useRef(skipAnimation);
 
   useEffect(() => {
-    // Start animation only when BOTH balance and fiat are available
-    if (balanceSat > 0 && hasFiatData && !hasTriggeredAnimation.current) {
+    // Start animation only when BOTH balance and secondary data are available
+    if (primaryBalance > 0 && hasSecondaryData && !hasTriggeredAnimation.current) {
       hasTriggeredAnimation.current = true;
       hasPlayedInitialAnimation = true;
       setAnimationReady(true);
     }
-  }, [balanceSat, hasFiatData]);
+  }, [primaryBalance, hasSecondaryData]);
 
-  // Timeout fallback: if fiat doesn't load within 2s, animate balance anyway
+  // Timeout fallback: if secondary data doesn't load within 2s, animate balance anyway
   useEffect(() => {
-    if (balanceSat > 0 && !hasTriggeredAnimation.current) {
+    if (primaryBalance > 0 && !hasTriggeredAnimation.current) {
       const timeout = setTimeout(() => {
         if (!hasTriggeredAnimation.current) {
           hasTriggeredAnimation.current = true;
@@ -116,35 +142,64 @@ const CollapsingWalletHeader: React.FC<CollapsingWalletHeaderProps> = ({
       }, 2000);
       return () => clearTimeout(timeout);
     }
-  }, [balanceSat]);
+  }, [primaryBalance]);
 
   // Only animate from 80% when both are ready; otherwise show full value
   // On return visits, skip the count-up effect (no initialStartPercent)
   const animatedBalance = useAnimatedNumber(
-    animationReady ? balanceSat : 0,
+    animationReady ? primaryBalance : 0,
     skipAnimation ? {} : { initialStartPercent: 0.8 }
   );
 
   // Display: if animation started, use animated value; otherwise use actual balance
-  const displayBalance = animationReady ? animatedBalance : balanceSat;
+  const displayBalance = animationReady ? animatedBalance : primaryBalance;
 
   // Calculate current fiat value from display balance (so both animate together)
+  // Used only in non-stable-balance mode
   const currentFiat = useMemo(() => {
-    if (!hasFiatData || balanceSat === 0) return null;
-    
+    if (stableBalance.isActive) return null;
+    if (!hasSecondaryData || btcBalanceSat === 0) return null;
+
     const info = fiatCurrencyInfo[activeFiatIndex % fiatCurrencyInfo.length];
     const btcValue = displayBalance / 100000000;
     const fiatValue = btcValue * info.rate;
-    
+
     return {
       ...info,
       value: fiatValue.toFixed(info.fractionSize),
     };
-  }, [fiatCurrencyInfo, activeFiatIndex, displayBalance, balanceSat, hasFiatData]);
+  }, [stableBalance.isActive, fiatCurrencyInfo, activeFiatIndex, displayBalance, btcBalanceSat, hasSecondaryData]);
+
+  // Stable balance secondary line
+  const stableSecondaryText = useMemo(() => {
+    if (!stableBalance.isActive) return null;
+    if (btcBalanceSat > 0) return `${formatWithThinSpaces(btcBalanceSat)} change`;
+    return null;
+  }, [stableBalance.isActive, btcBalanceSat]);
+
+  // Format primary balance display — strip the currency symbol so we can position it separately
+  const formattedPrimaryBalance = useMemo(() => {
+    if (stableBalance.isActive && stableBalance.displayConfig) {
+      const full = formatTokenAmount(BigInt(displayBalance), stableBalance.displayConfig);
+      const sym = stableBalance.displayConfig.symbol;
+      return full.startsWith(sym) ? full.slice(sym.length).trimStart() : full;
+    }
+    return formatWithThinSpaces(displayBalance);
+  }, [stableBalance.isActive, stableBalance.displayConfig, displayBalance]);
+
+  // Currency symbol to show before the balance (₿ for sats, $ etc. for stable)
+  const currencySymbol = stableBalance.isActive && stableBalance.displayConfig?.symbol
+    ? stableBalance.displayConfig.symbol
+    : '₿';
 
   if (!walletInfo) return null;
 
+  const balanceSuffix = stableBalance.isActive ? 'USD' : 'sats';
+
+  const hasSecondaryLine = stableBalance.isActive ? !!stableSecondaryText : !!currentFiat;
+
   return (
+  <>
     <div className="relative overflow-hidden transition-all duration-200">
       {/* Glassmorphism background - extends into safe area */}
       <div
@@ -227,7 +282,20 @@ const CollapsingWalletHeader: React.FC<CollapsingWalletHeaderProps> = ({
                 isSyncing ? 'opacity-0' : 'opacity-100'
               }`}
             >
-              Balance<span className="text-spark-text-muted/50 mx-1.5">·</span><span className="text-spark-text-muted/50">sats</span>
+              Balance
+              {stableBalanceToggleVisible ? (
+                <button
+                  type="button"
+                  onClick={handleSuffixTap}
+                  disabled={stableBalance.isToggling}
+                  className="inline-flex items-center cursor-pointer text-spark-text-muted/50 hover:text-spark-text-secondary transition-colors disabled:opacity-50 font-display text-xs font-medium tracking-widest uppercase"
+                >
+                  <span className="mx-1.5">·</span>
+                  <span className="px-1.5 py-0.5 rounded-full bg-white/5 hover:bg-white/10 active:scale-95 transition-all">{balanceSuffix}</span>
+                </button>
+              ) : (
+                <span className="text-spark-text-muted/50"><span className="mx-1.5">·</span>sats</span>
+              )}
             </span>
           </div>
 
@@ -237,31 +305,36 @@ const CollapsingWalletHeader: React.FC<CollapsingWalletHeaderProps> = ({
             data-testid="wallet-balance"
           >
             <span className="balance-display">
-              {formatWithThinSpaces(displayBalance)}
+              {formattedPrimaryBalance}
             </span>
-            {displayBalance > 0 && <span className="absolute right-full top-1/2 -translate-y-1/2 mr-0.5 text-3xl text-spark-text-secondary opacity-70 font-mono">₿</span>}
+            {displayBalance > 0 && <span className="absolute right-full top-1/2 -translate-y-1/2 mr-0.5 text-3xl text-spark-text-secondary opacity-70 font-mono">{currencySymbol}</span>}
           </div>
 
-          {/* Fiat value with accent marks - always reserve space to prevent layout shift */}
+          {/* Secondary line - fiat value or BTC as fiat equivalent */}
           <div
             className={`mt-2 flex items-center justify-center gap-3 transition-opacity duration-200 ${
-              currentFiat ? 'opacity-100' : 'opacity-0'
-            } ${fiatCurrencyInfo.length > 1 ? 'cursor-pointer' : ''}`}
-            onClick={fiatCurrencyInfo.length > 1 ? handleFiatTap : undefined}
+              hasSecondaryLine ? 'opacity-100' : 'opacity-0'
+            } ${!stableBalance.isActive && fiatCurrencyInfo.length > 1 ? 'cursor-pointer' : ''}`}
+            onClick={!stableBalance.isActive && fiatCurrencyInfo.length > 1 ? handleFiatTap : undefined}
           >
             <span className="w-6 h-0.5 bg-spark-primary" style={{
               maskImage: 'linear-gradient(to right, transparent, black)',
               WebkitMaskImage: 'linear-gradient(to right, transparent, black)'
             }} />
             <span className="text-spark-text-secondary text-sm font-mono">
-              {currentFiat ? (
+              {stableBalance.isActive ? (
+                stableSecondaryText ? (
+                  <span className="inline-flex items-center"><span className="text-[0.8em] opacity-70 mr-px">₿</span>{stableSecondaryText}</span>
+                ) : (
+                  <span className="invisible">$0.00</span>
+                )
+              ) : currentFiat ? (
                 <>
                   {currentFiat.symbolPosition === 'before' ? currentFiat.symbol : ''}
                   {currentFiat.value}
                   {currentFiat.symbolPosition === 'after' ? ` ${currentFiat.symbol}` : ''}
                 </>
               ) : (
-                /* Invisible placeholder to reserve space */
                 <span className="invisible">$0.00</span>
               )}
             </span>
@@ -275,7 +348,16 @@ const CollapsingWalletHeader: React.FC<CollapsingWalletHeaderProps> = ({
         {/* Bottom spacing */}
         <div className="h-4" />
       </div>
+
     </div>
+
+    <StableBalanceToggleFlow
+      isOpen={toggleFlowOpen}
+      direction={toggleDirection}
+      onComplete={() => { refreshWalletData?.(); setToggleFlowOpen(false); }}
+      onCancel={() => setToggleFlowOpen(false)}
+    />
+  </>
   );
 };
 

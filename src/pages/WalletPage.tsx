@@ -5,7 +5,7 @@ import { logger, LogCategory } from '@/services/logger';
 import CollapsingWalletHeader from '../components/CollapsingWalletHeader';
 import SideMenu from '../components/SideMenu';
 import TransactionList from '../components/TransactionList';
-import { GetInfoResponse, Payment, Rate, FiatCurrency, DepositInfo } from '@breeztech/breez-sdk-spark';
+import { GetInfoResponse, Payment, DepositInfo } from '@breeztech/breez-sdk-spark';
 import { ArrowUpIcon, QrCodeIcon, ArrowDownIcon } from '../components/Icons';
 import { mergeDepositsWithTransactions, ExtendedPayment, isUnclaimedDepositPayment } from '@/utils/depositHelpers';
 import SendPaymentDialog from '../features/send/SendPaymentDialog';
@@ -19,8 +19,6 @@ interface WalletPageProps {
   walletInfo: GetInfoResponse | null;
   transactions: Payment[];
   unclaimedDeposits: DepositInfo[];
-  fiatRates: Rate[];
-  fiatCurrencies: FiatCurrency[];
   refreshWalletData: (showLoading?: boolean) => Promise<void>;
   isSyncing: boolean;
   error: string | null;
@@ -38,8 +36,6 @@ const WalletPage: React.FC<WalletPageProps> = ({
   walletInfo,
   transactions,
   unclaimedDeposits,
-  fiatRates,
-  fiatCurrencies,
   refreshWalletData,
   isSyncing,
   onLogout,
@@ -184,12 +180,11 @@ const WalletPage: React.FC<WalletPageProps> = ({
       <div className="sticky top-0 z-10">
         <CollapsingWalletHeader
           walletInfo={walletInfo}
-          fiatRates={fiatRates}
-          fiatCurrencies={fiatCurrencies}
           scrollProgress={scrollProgress}
           onOpenMenu={() => setIsMenuOpen(true)}
           onOpenBuyBitcoin={onOpenBuyBitcoin}
           isSyncing={isSyncing}
+          refreshWalletData={() => refreshWalletData(false)}
           hasRejectedDeposits={hasRejectedDeposits}
           onOpenGetRefund={() => onOpenGetRefund('icon')}
         />

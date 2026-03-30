@@ -1,9 +1,11 @@
 import React, { useMemo } from 'react';
 import { Payment } from '@breeztech/breez-sdk-spark';
-import { useContactsContext } from '../contexts/ContactsContext';
-import { getPaymentDescription } from '../utils/paymentDescription';
 import { formatWithCommas } from '../utils/formatNumber';
 import { ArrowDownIcon, ArrowUpIcon, LightningBoltIcon, WalletIcon } from './Icons';
+import { useStableBalance } from '../contexts/StableBalanceContext';
+import { useFiatData } from '../contexts/FiatDataContext';
+import { formatTokenAmount, buildTokenDisplayConfig, tokenAmountDisplaysAsZero } from '../utils/tokenFormatting';
+import { getPaymentTitle } from '../utils/paymentLabels';
 
 // Use centralized formatting utility
 const formatWithSpaces = formatWithCommas;
@@ -34,6 +36,8 @@ const getTransactionIcon = (payment: Payment): React.ReactNode => {
   return payment.paymentType === 'receive' ? ReceiveIcon : SendIcon;
 };
 
+
+
 const getMethodIcon = (payment: Payment): React.ReactNode => {
   return payment.method === 'lightning' ? LightningIcon : null;
 };
@@ -59,9 +63,9 @@ interface TransactionListProps {
 }
 
 const TransactionList: React.FC<TransactionListProps> = ({ transactions, onPaymentSelected, isSyncing }) => {
-  const { findContactByAddress } = useContactsContext();
-
-  // Split transactions in single pass (js-combine-iterations optimization)
+  const stableBalance = useStableBalance();
+  const { fiatCurrencies } = useFiatData();
+  // Split transactions into pending deposits and regular payments
   const { pendingApproval, regularPayments } = useMemo(() => {
     const pending: Payment[] = [];
     const regular: Payment[] = [];
@@ -108,7 +112,7 @@ const TransactionList: React.FC<TransactionListProps> = ({ transactions, onPayme
 
   const renderTransactionItem = (tx: Payment, index: number) => {
     const isReceive = tx.paymentType === 'receive';
-    const isPending = tx.status === 'pending';
+    const isPending = tx.status === 'pending' || tx.conversionDetails?.status === 'pending';
     const isFailed = tx.status === 'failed';
 
     return (
@@ -132,7 +136,7 @@ const TransactionList: React.FC<TransactionListProps> = ({ transactions, onPayme
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-1.5">
             <p className="text-[15px] font-medium text-spark-text-primary truncate">
-              {getPaymentDescription(tx, findContactByAddress)}
+              {getPaymentTitle(tx, stableBalance.displayConfig?.fiatCurrencyName)}
             </p>
             <span className="text-spark-text-muted flex-shrink-0">{getMethodIcon(tx)}</span>
             {isPending && (
@@ -146,12 +150,25 @@ const TransactionList: React.FC<TransactionListProps> = ({ transactions, onPayme
           </div>
           <div className="flex items-center gap-1 text-xs text-spark-text-muted mt-0.5">
             <span>{formatTimeAgo(tx.timestamp)}</span>
-            {tx.fees > 0 && !isFailed && (
-              <>
-                <span>·</span>
-                <span>fee {formatWithSpaces(Number(tx.fees))}</span>
-              </>
-            )}
+            {(() => {
+              if (isFailed || tx.fees <= 0) return null;
+              let feeText: string;
+              if (tx.details?.type === 'token') {
+                const feeBigInt = BigInt(tx.fees);
+                const config = stableBalance.displayConfig
+                  ?? buildTokenDisplayConfig(tx.details.metadata, fiatCurrencies);
+                if (tokenAmountDisplaysAsZero(feeBigInt, config)) return null;
+                feeText = formatTokenAmount(feeBigInt, config);
+              } else {
+                feeText = formatWithSpaces(Number(tx.fees));
+              }
+              return (
+                <>
+                  <span>·</span>
+                  <span>fee {feeText}</span>
+                </>
+              );
+            })()}
           </div>
         </div>
 
@@ -165,7 +182,17 @@ const TransactionList: React.FC<TransactionListProps> = ({ transactions, onPayme
           `}
           data-testid="transaction-amount"
         >
-          {isReceive ? '+' : '-'}<span className="text-[0.8em] opacity-70">₿</span>{formatWithSpaces(Number(tx.amount))}
+          {isReceive ? '+' : '-'}
+          {(tx.details?.type === 'token' || tx.conversionDetails)
+            ? (() => {
+                const formatted = stableBalance.formatPaymentAmount(tx);
+                // Style the leading currency symbol (e.g. $, €) to match ₿ treatment
+                const match = formatted.match(/^([^\d-]+)(.*)/);
+                if (match) return <><span className="text-[0.8em] opacity-70">{match[1]}</span>{match[2]}</>;
+                return formatted;
+              })()
+            : <><span className="text-[0.8em] opacity-70">₿</span>{formatWithSpaces(Number(tx.amount))}</>
+          }
         </span>
       </li>
     );

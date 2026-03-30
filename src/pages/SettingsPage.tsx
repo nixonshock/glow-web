@@ -10,6 +10,7 @@ import { shareOrDownloadLogs } from '@/services/logExport';
 import { useSecretTap } from '@/hooks/useSecretTap';
 
 const DEV_MODE_STORAGE_KEY = 'spark-dev-mode';
+const STABLE_BALANCE_VISIBLE_KEY = 'stable-balance-toggle-visible';
 
 interface SettingsPageProps {
   onBack: () => void;
@@ -37,6 +38,9 @@ const SettingsPage: React.FC<SettingsPageProps> = ({ onBack, config, onOpenFiatC
   const [sparkPrivateModeEnabled, setSparkPrivateModeEnabled] = useState<boolean>(true);
   const [isLoadingUserSettings, setIsLoadingUserSettings] = useState<boolean>(true);
 
+  const [stableBalanceToggleVisible, setStableBalanceToggleVisible] = useState<boolean>(
+    () => localStorage.getItem(STABLE_BALANCE_VISIBLE_KEY) === 'true'
+  );
   const [isDownloadingLogs, setIsDownloadingLogs] = useState<boolean>(false);
 
   useEffect(() => {
@@ -289,6 +293,23 @@ const SettingsPage: React.FC<SettingsPageProps> = ({ onBack, config, onOpenFiatC
                   <Switch
                     checked={preferSparkOverLightning}
                     onChange={() => setPreferSparkOverLightning(!preferSparkOverLightning)}
+                  />
+                </div>
+              </div>
+
+              <div className="bg-spark-dark border border-spark-border rounded-2xl p-4">
+                <div className="flex items-center justify-between gap-3">
+                  <div>
+                    <span className="font-display font-medium text-spark-text-primary block">Enable Stable Balance</span>
+                    <span className="text-sm text-spark-text-muted">Show the BTC/USD stable balance toggle</span>
+                  </div>
+                  <Switch
+                    checked={stableBalanceToggleVisible}
+                    onChange={() => {
+                      const next = !stableBalanceToggleVisible;
+                      setStableBalanceToggleVisible(next);
+                      localStorage.setItem(STABLE_BALANCE_VISIBLE_KEY, String(next));
+                    }}
                   />
                 </div>
               </div>

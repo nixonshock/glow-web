@@ -1,6 +1,6 @@
-import { useState, useCallback, useEffect, useMemo, useContext } from 'react';
+import { useState, useCallback, useEffect, useMemo } from 'react';
 import type { Contact, SdkEvent } from '@breeztech/breez-sdk-spark';
-import { WalletContext } from '../contexts/WalletContext';
+import { useWalletConnection } from '../contexts/WalletContext';
 import { logger, LogCategory } from '../services/logger';
 import { formatError } from '../utils/formatError';
 
@@ -32,7 +32,7 @@ export interface UseContactsReturn {
 }
 
 export function useContacts(): UseContactsReturn {
-  const wallet = useContext(WalletContext);
+  const { sdk: wallet } = useWalletConnection();
   const [contacts, setContacts] = useState<Contact[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [hasSynced, setHasSynced] = useState(false);

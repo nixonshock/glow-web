@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { WalletProvider } from './contexts/WalletContext';
 import LoadingSpinner from './components/LoadingSpinner';
 import PaymentReceivedCelebration from './components/PaymentReceivedCelebration';
@@ -7,6 +7,8 @@ import StagingGate from './components/StagingGate';
 import { ToastProvider, useToast } from './contexts/ToastContext';
 import AppShell from './components/layout/AppShell';
 import { useBreezSdk } from './hooks/useBreezSdk';
+import { FiatDataProvider } from './contexts/FiatDataContext';
+import { StableBalanceProvider, useStableBalance } from './contexts/StableBalanceContext';
 
 import HomePage from './pages/HomePage';
 import WalletPage from './pages/WalletPage';
@@ -19,19 +21,29 @@ import SettingsPage from './pages/SettingsPage';
 import FiatCurrenciesPage from './pages/FiatCurrenciesPage';
 import { ContactsProvider } from './contexts/ContactsContext';
 import { useIOSViewportFix } from './hooks/useIOSViewportFix';
-import type { Seed } from '@breeztech/breez-sdk-spark';
+import type { Seed, Payment } from '@breeztech/breez-sdk-spark';
 
 type Screen = 'home' | 'restore' | 'generate' | 'wallet' | 'getRefund' | 'settings' | 'backup' | 'fiatCurrencies' | 'passkey';
+
+// Bridge component that feeds StableBalance formatter back to useBreezSdk via a mutable ref
+const StableBalanceFormatterBridge: React.FC<{ formatterRef: React.MutableRefObject<((payment: Payment) => string) | undefined> }> = ({ formatterRef }) => {
+  const stableBalance = useStableBalance();
+  useEffect(() => {
+    formatterRef.current = stableBalance.formatPaymentAmount;
+  }, [formatterRef, stableBalance.formatPaymentAmount]);
+  return null;
+};
 
 const AppContent: React.FC = () => {
   const [currentScreen, setCurrentScreen] = useState<Screen>('home');
   const [refundAnimationDirection, setRefundAnimationDirection] = useState<'left' | 'up'>('left');
   const [passkeySdkConnected, setPasskeySdkConnected] = useState(false);
   const { showToast } = useToast();
+  const formatPaymentAmountRef = useRef<((payment: Payment) => string) | undefined>(undefined);
 
   useIOSViewportFix();
 
-  const sdk = useBreezSdk(showToast);
+  const sdk = useBreezSdk(showToast, formatPaymentAmountRef);
 
   // Auto-navigate to wallet when SDK reconnects from saved mnemonic
   useEffect(() => {
@@ -163,8 +175,6 @@ const AppContent: React.FC = () => {
             walletInfo={sdk.walletInfo}
             transactions={sdk.transactions}
             unclaimedDeposits={sdk.unclaimedDeposits}
-            fiatRates={sdk.fiatRates}
-            fiatCurrencies={sdk.fiatCurrencies}
             refreshWalletData={sdk.refreshWalletData}
             isSyncing={sdk.isSyncing}
             error={sdk.error}
@@ -188,17 +198,26 @@ const AppContent: React.FC = () => {
   };
 
   return (
-    <WalletProvider client={sdk.sdk}>
-      <ContactsProvider>
-        {renderCurrentScreen()}
-      </ContactsProvider>
-      {sdk.celebrationAmount !== null && (
-        <PaymentReceivedCelebration
-          amount={sdk.celebrationAmount}
-          onClose={sdk.dismissCelebration}
-        />
-      )}
-      <InstallPrompt />
+    <WalletProvider client={sdk.sdk} isConnected={sdk.isConnected}>
+      <FiatDataProvider>
+        <StableBalanceProvider>
+          <StableBalanceFormatterBridge formatterRef={formatPaymentAmountRef} />
+          {sdk.isConnected ? (
+            <ContactsProvider>
+              {renderCurrentScreen()}
+            </ContactsProvider>
+          ) : (
+            renderCurrentScreen()
+          )}
+          {sdk.celebrationPayment !== null && (
+            <PaymentReceivedCelebration
+              payment={sdk.celebrationPayment}
+              onClose={sdk.dismissCelebration}
+            />
+          )}
+          <InstallPrompt />
+        </StableBalanceProvider>
+      </FiatDataProvider>
     </WalletProvider>
   );
 };

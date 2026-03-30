@@ -150,6 +150,7 @@ const SendPaymentDialog: React.FC<SendPaymentDialogProps> = ({ isOpen, onClose, 
                   <Bolt11Workflow
                     method={send.prepareResponse.paymentMethod}
                     amountSats={send.prepareResponse.amount}
+                    conversionEstimate={send.prepareResponse.conversionEstimate}
                     onBack={() => send.setCurrentStep('input')}
                     onSend={send.handleSend}
                   />
@@ -159,6 +160,7 @@ const SendPaymentDialog: React.FC<SendPaymentDialogProps> = ({ isOpen, onClose, 
                     method={send.prepareResponse.paymentMethod}
                     amountSats={send.prepareResponse.amount}
                     feesIncluded={send.feesIncluded}
+                    conversionEstimate={send.prepareResponse.conversionEstimate}
                     onBack={() => send.setCurrentStep('amount')}
                     onSend={send.handleSend}
                   />
@@ -168,6 +170,7 @@ const SendPaymentDialog: React.FC<SendPaymentDialogProps> = ({ isOpen, onClose, 
                     method={send.prepareResponse.paymentMethod}
                     amountSats={send.prepareResponse.amount}
                     feesIncluded={send.feesIncluded}
+                    conversionEstimate={send.prepareResponse.conversionEstimate}
                     onBack={() => send.setCurrentStep('input')}
                     onSend={send.handleSend}
                   />

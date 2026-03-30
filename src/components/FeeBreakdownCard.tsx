@@ -8,13 +8,15 @@ import { formatWithThinSpaces } from '../utils/formatNumber';
 
 export interface FeeBreakdownItem {
   label: string;
-  value: number | bigint;
+  value: number | bigint | string;
   unit?: string;
   highlight?: boolean;
 }
 
 export interface FeeBreakdownCardProps {
   items: FeeBreakdownItem[];
+  /** When true, values are pre-formatted strings — skip numeric formatting and unit suffix */
+  useRawStrings?: boolean;
   /** Optional className for additional styling */
   className?: string;
 }
@@ -33,6 +35,7 @@ export interface FeeBreakdownCardProps {
  */
 export const FeeBreakdownCard: React.FC<FeeBreakdownCardProps> = ({
   items,
+  useRawStrings = false,
   className = '',
 }) => {
   return (
@@ -45,7 +48,10 @@ export const FeeBreakdownCard: React.FC<FeeBreakdownCardProps> = ({
               {item.label}
             </span>
             <span className={`font-mono text-sm ${item.highlight ? 'font-bold text-spark-primary' : 'text-spark-text-primary'}`}>
-              {Number(item.value) === 0 ? '0' : <span className="inline-flex items-center"><span className="text-[0.8em] opacity-70 mr-px">₿</span>{formatWithThinSpaces(item.value)}</span>}
+              {useRawStrings || typeof item.value === 'string'
+                ? String(item.value)
+                : Number(item.value) === 0 ? '0' : <span className="inline-flex items-center"><span className="text-[0.8em] opacity-70 mr-px">₿</span>{formatWithThinSpaces(item.value)}</span>
+              }
             </span>
           </div>
         </React.Fragment>
@@ -58,8 +64,10 @@ export const FeeBreakdownCard: React.FC<FeeBreakdownCardProps> = ({
  * Simplified version for the common amount + fee + total pattern.
  */
 export interface SimpleFeeBreakdownProps {
-  amount: number | bigint;
-  fee: number | bigint;
+  amount: number | bigint | string;
+  fee: number | bigint | string;
+  /** When true, values are pre-formatted strings — skip numeric formatting and unit suffix */
+  useRawStrings?: boolean;
   /** Optional custom label for the amount row */
   amountLabel?: string;
   /** Optional custom label for the fee row */
@@ -70,15 +78,29 @@ export interface SimpleFeeBreakdownProps {
 export const SimpleFeeBreakdown: React.FC<SimpleFeeBreakdownProps> = ({
   amount,
   fee,
+  useRawStrings = false,
   amountLabel = 'Amount',
   feeLabel = 'Network fee',
   className = '',
 }) => {
-  const total = Number(amount) + Number(fee);
+  if (useRawStrings) {
+    return (
+      <FeeBreakdownCard
+        className={className}
+        useRawStrings
+        items={[
+          { label: amountLabel, value: String(amount) },
+          { label: feeLabel, value: String(fee) },
+        ]}
+      />
+    );
+  }
 
+  const total = Number(amount) + Number(fee);
   return (
     <FeeBreakdownCard
       className={className}
+      useRawStrings={useRawStrings}
       items={[
         { label: amountLabel, value: amount },
         { label: feeLabel, value: fee },

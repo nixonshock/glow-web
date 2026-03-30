@@ -4,7 +4,6 @@ import { logger, LogCategory } from '@/services/logger';
 import {
   CloseIcon,
   ChevronDownIcon,
-  ExternalLinkIcon,
   CopyFilledIcon,
   ShareIcon,
   InfoIcon,
@@ -151,6 +150,30 @@ export const PaymentInfoRow: React.FC<{
 );
 
 
+export const CollapsibleSection: React.FC<{
+  label: string;
+  isVisible: boolean;
+  onToggle: () => void;
+  children: ReactNode;
+}> = ({ label, isVisible, onToggle, children }) => (
+  <div className="py-2">
+    <button
+      onClick={onToggle}
+      className="flex justify-between items-center w-full text-left"
+    >
+      <span className="text-spark-text-secondary text-sm">{label}</span>
+      <span className="text-spark-primary hover:text-spark-primary-light flex items-center transition-colors p-1">
+        <ChevronDownIcon size="md" className={`transition-transform ${isVisible ? 'rotate-180' : ''}`} />
+      </span>
+    </button>
+    {isVisible && (
+      <div className="mt-2 bg-spark-dark border border-spark-border rounded-xl p-3">
+        {children}
+      </div>
+    )}
+  </div>
+);
+
 export const CollapsibleCodeField: React.FC<{
   label: string;
   value: string;
@@ -158,36 +181,27 @@ export const CollapsibleCodeField: React.FC<{
   onToggle: () => void;
   href?: string;
 }> = ({ label, value, isVisible, onToggle, href }) => (
-  <div className="py-2">
-    <div className="flex justify-between items-center">
-      <span className="text-spark-text-secondary text-sm">{label}</span>
-      <button
-        onClick={onToggle}
-        className="text-spark-primary hover:text-spark-primary-light focus:outline-none focus:text-spark-primary active:text-spark-primary flex items-center transition-colors p-1"
-      >
-        <ChevronDownIcon size="md" className={`transition-transform ${isVisible ? 'rotate-180' : ''}`} />
-      </button>
+  <CollapsibleSection label={label} isVisible={isVisible} onToggle={onToggle}>
+    <div className="overflow-x-auto">
+      {href ? (
+        <a
+          href={href}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="font-mono text-xs break-all flex items-center gap-1 group"
+        >
+          <span className="text-spark-text-secondary">{value}</span>
+          <svg className="w-3.5 h-3.5 flex-shrink-0 text-spark-primary opacity-70 group-hover:opacity-100 transition-opacity" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+          </svg>
+        </a>
+      ) : (
+        <code className="text-spark-text-secondary font-mono text-xs break-all">
+          {value}
+        </code>
+      )}
     </div>
-    {isVisible && (
-      <div className="bg-spark-dark border border-spark-border rounded-xl p-3 mt-2 overflow-x-auto">
-        {href ? (
-          <a
-            href={href}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="font-mono text-xs break-all flex items-center gap-1 group"
-          >
-            <span className="text-spark-text-secondary">{value}</span>
-            <ExternalLinkIcon className="flex-shrink-0 text-spark-primary opacity-70 group-hover:opacity-100 transition-opacity" />
-          </a>
-        ) : (
-          <code className="text-spark-text-secondary font-mono text-xs break-all">
-            {value}
-          </code>
-        )}
-      </div>
-    )}
-  </div>
+  </CollapsibleSection>
 );
 
 // ============================================

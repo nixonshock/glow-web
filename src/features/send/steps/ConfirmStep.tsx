@@ -1,27 +1,42 @@
 import React from 'react';
 import { PrimaryButton, SecondaryButton, FormError } from '../../../components/ui';
-import { SimpleFeeBreakdown } from '../../../components/FeeBreakdownCard';
+import { FeeBreakdownCard, SimpleFeeBreakdown } from '../../../components/FeeBreakdownCard';
 import { SpinnerIcon } from '../../../components/Icons';
 import { formatWithThinSpaces } from '../../../utils/formatNumber';
+import { useStableBalance } from '../../../contexts/StableBalanceContext';
+import { formatTokenAmount } from '../../../utils/tokenFormatting';
+import type { ConversionEstimate } from '@breeztech/breez-sdk-spark';
 
 export interface ConfirmStepProps {
   amountSats: bigint | null;
   feesSat: number | null;
   feesIncluded?: boolean;
+  conversionEstimate?: ConversionEstimate | null;
   error: string | null;
   isLoading: boolean;
   onBack?: () => void;
   onConfirm: () => void;
 }
 
-const ConfirmStep: React.FC<ConfirmStepProps> = ({ amountSats, feesSat, feesIncluded, error, isLoading, onBack, onConfirm }) => {
+const ConfirmStep: React.FC<ConfirmStepProps> = ({ amountSats, feesSat, feesIncluded, conversionEstimate, error, isLoading, onBack, onConfirm }) => {
+  const stableBalance = useStableBalance();
+  const isTokenMode = stableBalance.isActive && !!stableBalance.displayConfig && !!conversionEstimate;
+
   const amount = Number(amountSats || 0n);
   const fee = Number(feesSat || 0);
   const total = feesIncluded ? amount : amount + fee;
 
+  // Token-formatted values from conversion estimate
+  const tokenAmount = isTokenMode
+    ? formatTokenAmount(conversionEstimate!.amount, stableBalance.displayConfig!)
+    : null;
+  const tokenFee = isTokenMode
+    ? formatTokenAmount(conversionEstimate!.fee, stableBalance.displayConfig!, { fullPrecision: true })
+    : null;
+
   return (
     <div className="space-y-6">
-      {/* Total amount display */}
+      {/* Total amount display — always show sats */}
       <div className="text-center py-4">
         <p className="text-spark-text-muted text-sm mb-2">You're sending</p>
         <div className="flex items-baseline justify-center gap-2">
@@ -31,8 +46,19 @@ const ConfirmStep: React.FC<ConfirmStepProps> = ({ amountSats, feesSat, feesIncl
         </div>
       </div>
 
-      {/* Breakdown */}
+      {/* Sats breakdown */}
       <SimpleFeeBreakdown amount={feesIncluded ? amount - fee : amount} fee={fee} amountLabel={feesIncluded ? 'Recipient gets' : 'Amount'} />
+
+      {/* Token conversion details */}
+      {isTokenMode && tokenAmount && tokenFee && (
+        <FeeBreakdownCard
+          useRawStrings
+          items={[
+            { label: 'Conversion amount', value: tokenAmount },
+            { label: 'Conversion fee', value: tokenFee },
+          ]}
+        />
+      )}
 
       <FormError error={error} />
 

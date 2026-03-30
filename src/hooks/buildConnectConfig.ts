@@ -2,6 +2,7 @@ import { Config, Network, defaultConfig } from '@breeztech/breez-sdk-spark';
 import { getSettings } from '../services/settings';
 import { logger, LogCategory } from '../services/logger';
 import { formatError } from '../utils/formatError';
+import { USDB_TOKEN_IDENTIFIER, USDB_TICKER } from '../constants/stableBalance';
 
 /**
  * Build a Breez SDK Config from environment and persisted user settings.
@@ -18,7 +19,9 @@ export function buildConnectConfig(overrideNetwork?: Network): Config {
   const config: Config = defaultConfig(network);
   config.apiKey = breezApiKey;
   config.privateEnabledDefault = false;
-  config.supportLnurlVerify = true;
+  config.stableBalanceConfig = {
+    tokens: [{ label: USDB_TICKER, tokenIdentifier: USDB_TOKEN_IDENTIFIER }],
+  };
 
   // Apply persisted user settings to config
   try {
