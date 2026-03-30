@@ -39,6 +39,7 @@ const CollapsingWalletHeader: React.FC<CollapsingWalletHeaderProps> = ({
   const [activeFiatIndex, setActiveFiatIndex] = useState(0);
   const [toggleFlowOpen, setToggleFlowOpen] = useState(false);
   const [toggleDirection, setToggleDirection] = useState<'toToken' | 'toBitcoin'>('toToken');
+  const stableBalanceToggleVisible = localStorage.getItem('stable-balance-toggle-visible') === 'true';
 
   const handleSuffixTap = useCallback(() => {
     if (stableBalance.isToggling) return;
@@ -282,15 +283,19 @@ const CollapsingWalletHeader: React.FC<CollapsingWalletHeaderProps> = ({
               }`}
             >
               Balance
-              <button
-                type="button"
-                onClick={handleSuffixTap}
-                disabled={stableBalance.isToggling}
-                className="inline-flex items-center cursor-pointer text-spark-text-muted/50 hover:text-spark-text-secondary transition-colors disabled:opacity-50 font-display text-xs font-medium tracking-widest uppercase"
-              >
-                <span className="mx-1.5">·</span>
-                <span className="px-1.5 py-0.5 rounded-full bg-white/5 hover:bg-white/10 active:scale-95 transition-all">{balanceSuffix}</span>
-              </button>
+              {stableBalanceToggleVisible ? (
+                <button
+                  type="button"
+                  onClick={handleSuffixTap}
+                  disabled={stableBalance.isToggling}
+                  className="inline-flex items-center cursor-pointer text-spark-text-muted/50 hover:text-spark-text-secondary transition-colors disabled:opacity-50 font-display text-xs font-medium tracking-widest uppercase"
+                >
+                  <span className="mx-1.5">·</span>
+                  <span className="px-1.5 py-0.5 rounded-full bg-white/5 hover:bg-white/10 active:scale-95 transition-all">{balanceSuffix}</span>
+                </button>
+              ) : (
+                <span className="text-spark-text-muted/50"><span className="mx-1.5">·</span>sats</span>
+              )}
             </span>
           </div>
 

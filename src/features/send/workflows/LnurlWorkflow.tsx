@@ -8,7 +8,6 @@ import { SpinnerIcon } from '@/components/Icons';
 import { useStableBalance } from '../../../contexts/StableBalanceContext';
 import { fiatToSats, TOKEN_QUICK_AMOUNTS, sanitizeTokenInput, formatQuickAmount } from '../../../utils/tokenFormatting';
 import CurrencySwitcher from '../../../components/ui/CurrencySwitcher';
-import { formatWithThinSpaces } from '../../../utils/formatNumber';
 
 interface LnurlWorkflowProps {
   parsed: LnurlPayRequestDetails;
@@ -199,13 +198,6 @@ const LnurlWorkflow: React.FC<LnurlWorkflowProps> = ({ parsed, balanceSats, onBa
             />
           )}
         </div>
-
-        {/* Change hint in stable mode */}
-        {stableBalance.isActive && balanceSats !== undefined && balanceSats > 0 && (
-          <p className="text-xs text-spark-text-muted mt-2">
-            ₿{formatWithThinSpaces(balanceSats)} change available
-          </p>
-        )}
 
         {/* Quick amount buttons */}
         <div className="flex gap-2 mt-3">
