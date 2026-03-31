@@ -99,6 +99,14 @@ const ReceivePaymentDialog: React.FC<ReceivePaymentDialogProps> = ({ isOpen, onC
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isOpen]);
 
+  // Re-trigger bitcoin address generation after reset clears the address
+  useEffect(() => {
+    if (isOpen && receive.activeTab === 'bitcoin' && !receive.bitcoinAddress && !receive.bitcoinLoading && !receive.error) {
+      receive.generateBitcoinAddress();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isOpen, receive.activeTab, receive.bitcoinAddress, receive.bitcoinLoading, receive.error]);
+
   const handleTabChange = (tab: PaymentMethod) => {
     receive.handleTabChange(tab, loadLightningAddress);
   };
