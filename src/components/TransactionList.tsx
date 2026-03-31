@@ -1,5 +1,6 @@
 import React, { useMemo } from 'react';
 import { Payment } from '@breeztech/breez-sdk-spark';
+import type { ExtendedPayment } from '../utils/depositHelpers';
 import { formatWithCommas } from '../utils/formatNumber';
 import { ArrowDownIcon, ArrowUpIcon, LightningBoltIcon, WalletIcon } from './Icons';
 import { useStableBalance } from '../contexts/StableBalanceContext';
@@ -66,19 +67,25 @@ const TransactionList: React.FC<TransactionListProps> = ({ transactions, onPayme
   const stableBalance = useStableBalance();
   const { fiatCurrencies } = useFiatData();
   // Split transactions into pending deposits and regular payments
-  const { pendingApproval, regularPayments } = useMemo(() => {
+  const { confirming, pendingApproval, regularPayments } = useMemo(() => {
+    const conf: Payment[] = [];
     const pending: Payment[] = [];
     const regular: Payment[] = [];
 
     for (const tx of transactions) {
       if (tx.method === 'deposit' && tx.status === 'pending') {
-        pending.push(tx);
+        const ext = tx as ExtendedPayment;
+        if (ext.depositInfo && !ext.depositInfo.isMature) {
+          conf.push(tx);
+        } else {
+          pending.push(tx);
+        }
       } else {
         regular.push(tx);
       }
     }
 
-    return { pendingApproval: pending, regularPayments: regular };
+    return { confirming: conf, pendingApproval: pending, regularPayments: regular };
   }, [transactions]);
 
   if (!transactions.length) {
@@ -200,6 +207,21 @@ const TransactionList: React.FC<TransactionListProps> = ({ transactions, onPayme
 
   return (
     <div className="px-4 py-3">
+      {/* Confirming section */}
+      {confirming.length > 0 && (
+        <>
+          <div className="flex items-center gap-2 mb-3">
+            <h2 className="text-sm font-semibold text-spark-text-muted tracking-wide uppercase">
+              Pending Confirmation
+            </h2>
+            <div className="flex-1 h-px bg-gradient-to-r from-spark-border to-transparent" />
+          </div>
+          <ul className="space-y-2 mb-6">
+            {confirming.map((tx, index) => renderTransactionItem(tx, index))}
+          </ul>
+        </>
+      )}
+
       {/* Pending Approval section */}
       {pendingApproval.length > 0 && (
         <>
