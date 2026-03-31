@@ -25,9 +25,15 @@ const UnclaimedDepositDetailsPage: React.FC<UnclaimedDepositDetailsPageProps> = 
   const [requiredFeeSats, setRequiredFeeSats] = useState<number | null>(null);
   const [isTxIdVisible, setIsTxIdVisible] = useState<boolean>(false);
 
+  const isConfirming = deposit ? !deposit.isMature : false;
+
   // Check if deposit has a claim error from automatic claim attempt
   useEffect(() => {
-    if (!deposit) return;
+    if (!deposit || !deposit.isMature) {
+      setClaimError(null);
+      setRequiredFeeSats(null);
+      return;
+    }
 
     const claimErrorData = deposit.claimError;
 
@@ -130,7 +136,7 @@ const UnclaimedDepositDetailsPage: React.FC<UnclaimedDepositDetailsPageProps> = 
             </>
           )}
 
-          {/* Pending automatic claim - no action needed */}
+          {/* Confirming or pending automatic claim - no action needed */}
           {!claimError && requiredFeeSats === null && (
             <>
               <FeeBreakdownCard
@@ -140,7 +146,9 @@ const UnclaimedDepositDetailsPage: React.FC<UnclaimedDepositDetailsPageProps> = 
               />
 
               <p className="text-spark-text-muted text-sm text-center">
-                This transfer will be claimed automatically.
+                {isConfirming
+                  ? 'Waiting for 3 confirmations.'
+                  : 'This transfer will be claimed automatically.'}
               </p>
             </>
           )}
