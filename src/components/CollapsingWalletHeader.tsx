@@ -196,7 +196,10 @@ const CollapsingWalletHeader: React.FC<CollapsingWalletHeaderProps> = ({
 
   const balanceSuffix = stableBalance.isActive ? 'USD' : 'sats';
 
-  const hasSecondaryLine = stableBalance.isActive ? !!stableSecondaryText : !!currentFiat;
+  // Hide fiat secondary line while stable balance config is still loading
+  // (activeLabel is set from cache but displayConfig hasn't loaded yet)
+  const stableBalanceLoading = !!stableBalance.activeLabel && !stableBalance.isActive;
+  const hasSecondaryLine = stableBalance.isActive ? !!stableSecondaryText : (!stableBalanceLoading && !!currentFiat);
 
   return (
   <>
