@@ -14,7 +14,7 @@ interface LnurlWorkflowProps {
   recipientLabel?: string;
   balanceSats?: number;
   onBack: () => void;
-  onRun: (runner: () => Promise<void>) => Promise<void>;
+  onRun: (runner: () => Promise<void>, hasConversion?: boolean) => Promise<void>;
   onPrepare: (args: PrepareLnurlPayRequest) => Promise<PrepareLnurlPayResponse>;
   onPay: (prepareResponse: PrepareLnurlPayResponse) => Promise<void>;
 }
@@ -116,7 +116,7 @@ const LnurlWorkflow: React.FC<LnurlWorkflowProps> = ({ parsed, recipientLabel, b
 
   const onConfirm = async () => {
     if (!prepareResponse) return;
-    await onRun(() => onPay(prepareResponse));
+    await onRun(() => onPay(prepareResponse), !!prepareResponse.conversionEstimate);
   };
 
   const feesSat: number | null = useMemo(() => {
