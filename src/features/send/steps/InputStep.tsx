@@ -3,7 +3,7 @@ import { SimpleAlert } from '../../../components/AlertCard';
 import { PrimaryButton } from '../../../components/ui';
 import ContactAutocomplete from '../components/ContactAutocomplete';
 import { useContactsContext } from '../../../contexts/ContactsContext';
-import { filterContacts } from '../../../hooks/useContacts';
+import { searchContacts } from '../../../hooks/useContacts';
 import { logger, LogCategory } from '@/services/logger';
 import { ClipboardIcon, QrCodeIcon, SpinnerIcon, ContactsIcon, CloseIcon } from '@/components/Icons';
 import type { Contact } from '@breeztech/breez-sdk-spark';
@@ -45,7 +45,7 @@ const InputStep: React.FC<InputStepProps> = ({ paymentInput, selectedContactAddr
     }
   }, [selectedContactAddress, contacts]);
 
-  const autocompleteContacts = useMemo(() => filterContacts(contacts, localPaymentInput), [contacts, localPaymentInput]);
+  const autocompleteContacts = useMemo(() => searchContacts(contacts, localPaymentInput), [contacts, localPaymentInput]);
 
   const showDropdown = isInputFocused && autocompleteContacts.length > 0 && !isLoading;
 
