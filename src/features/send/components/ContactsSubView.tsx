@@ -1,7 +1,7 @@
 import React, { useState, useMemo, useEffect, useRef } from 'react';
 import type { Contact } from '@breeztech/breez-sdk-spark';
 import { useContactsContext } from '../../../contexts/ContactsContext';
-import { isValidLightningAddress, filterContacts } from '../../../hooks/useContacts';
+import { isValidLightningAddress, searchContacts } from '../../../hooks/useContacts';
 import { FormInput, FormError, PrimaryButton, ConfirmDialog } from '../../../components/ui';
 import { BackIcon, PlusIcon, EditPencilIcon, TrashIcon, ContactsIcon, SearchIcon } from '../../../components/Icons';
 import { useWallet } from '../../../contexts/WalletContext';
@@ -25,8 +25,8 @@ const ContactsSubView: React.FC<ContactsSubViewProps> = ({ onSelect, onBack }) =
   const nameInputRef = useRef<HTMLInputElement>(null);
 
   const filteredContacts = useMemo(() => {
-    const filtered = searchQuery.trim() ? filterContacts(contacts, searchQuery) : [...contacts];
-    return filtered.sort((a, b) => a.name.localeCompare(b.name));
+    if (!searchQuery.trim()) return [...contacts].sort((a, b) => a.name.localeCompare(b.name));
+    return searchContacts(contacts, searchQuery);
   }, [contacts, searchQuery]);
 
   const isFormOpen = showAddForm || !!editingContact;

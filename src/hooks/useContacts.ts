@@ -10,13 +10,27 @@ export function isValidLightningAddress(address: string): boolean {
   return LN_ADDRESS_REGEX.test(address);
 }
 
-export function filterContacts(contacts: Contact[], query: string): Contact[] {
+export function searchContacts(contacts: Contact[], query: string): Contact[] {
   if (!contacts.length || !query.trim()) return [];
   const q = query.toLowerCase();
-  return contacts.filter(c =>
-    c.name.toLowerCase().includes(q) ||
-    c.paymentIdentifier.toLowerCase().includes(q)
-  );
+
+  const byName: Contact[] = [];
+  const byLocal: Contact[] = [];
+  const byDomain: Contact[] = [];
+
+  for (const c of contacts) {
+    const name = c.name.toLowerCase();
+    const addr = c.paymentIdentifier.toLowerCase();
+    const atIdx = addr.indexOf('@');
+    const domain = atIdx >= 0 ? addr.slice(atIdx + 1) : '';
+
+    if (name.startsWith(q)) byName.push(c);
+    else if (addr.startsWith(q)) byLocal.push(c);
+    else if (domain.startsWith(q)) byDomain.push(c);
+  }
+
+  const alpha = (a: Contact, b: Contact) => a.name.localeCompare(b.name);
+  return [...byName.sort(alpha), ...byLocal.sort(alpha), ...byDomain.sort(alpha)];
 }
 
 export interface UseContactsReturn {
