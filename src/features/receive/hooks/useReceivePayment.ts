@@ -24,6 +24,7 @@ export interface UseReceivePaymentReturn {
   setAmount: (amt: string) => void;
   setShowAmountPanel: (show: boolean) => void;
   handleTabChange: (tab: PaymentMethod, loadLightningAddress: () => void) => void;
+  generateBitcoinAddress: () => Promise<void>;
   generateBolt11Invoice: () => Promise<void>;
   reset: () => void;
 }
@@ -82,7 +83,7 @@ export function useReceivePayment(): UseReceivePaymentReturn {
     setBitcoinLoading(true);
     try {
       const receiveResponse = await wallet.receivePayment({
-        paymentMethod: { type: 'bitcoinAddress' },
+        paymentMethod: { type: 'bitcoinAddress', newAddress: true },
       });
       setBitcoinAddress(receiveResponse.paymentRequest);
     } catch (err) {
@@ -170,6 +171,7 @@ export function useReceivePayment(): UseReceivePaymentReturn {
     setAmount,
     setShowAmountPanel,
     handleTabChange,
+    generateBitcoinAddress,
     generateBolt11Invoice,
     reset,
   };
