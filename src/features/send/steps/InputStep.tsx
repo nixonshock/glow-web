@@ -47,7 +47,6 @@ const InputStep: React.FC<InputStepProps> = ({ paymentInput, selectedContactAddr
 
   const autocompleteContacts = useMemo(() => searchContacts(contacts, localPaymentInput), [contacts, localPaymentInput]);
 
-  const showDropdown = isInputFocused && autocompleteContacts.length > 0 && !isLoading;
 
   const handlePaste = async () => {
     try {
@@ -83,10 +82,10 @@ const InputStep: React.FC<InputStepProps> = ({ paymentInput, selectedContactAddr
   return (
     <div className="flex flex-col gap-4">
       {/* Input with autocomplete */}
-      <div className="relative">
+      <div className="h-20">
         {selectedContact ? (
           // Selected contact chip
-          <div className="w-full p-3 bg-spark-dark border border-spark-border rounded-xl flex items-center gap-3">
+          <div className="w-full h-full px-4 bg-spark-dark border border-spark-border rounded-xl flex items-center gap-3">
             <div className="w-8 h-8 rounded-full bg-spark-primary/15 flex items-center justify-center flex-shrink-0">
               <span className="text-spark-primary font-display font-bold text-xs">
                 {selectedContact.name.charAt(0).toUpperCase()}
@@ -107,17 +106,14 @@ const InputStep: React.FC<InputStepProps> = ({ paymentInput, selectedContactAddr
           </div>
         ) : (
           // Text input with autocomplete
-          <>
+          <div className="relative h-full">
             <textarea
               value={localPaymentInput}
               onChange={(e) => setLocalPaymentInput(e.target.value)}
               onFocus={() => setIsInputFocused(true)}
               onBlur={() => setTimeout(() => setIsInputFocused(false), 100)}
               placeholder="lnbc... / bc1... / sp1... / user@domain.com / contact"
-              className={`w-full p-4 bg-spark-dark border border-spark-border text-spark-text-primary placeholder-spark-text-muted focus:border-spark-primary focus:ring-0 resize-none font-mono text-sm transition-all ${
-                showDropdown ? 'rounded-t-xl rounded-b-none border-b-0' : 'rounded-xl'
-              }`}
-              rows={2}
+              className="w-full h-full p-4 bg-spark-dark text-spark-text-primary placeholder-spark-text-muted focus:ring-0 resize-none font-mono text-sm border outline-none transition-all rounded-xl border-spark-border focus:border-spark-primary"
               disabled={isLoading}
               data-testid="payment-input"
             />
@@ -127,7 +123,7 @@ const InputStep: React.FC<InputStepProps> = ({ paymentInput, selectedContactAddr
               isLoading={isLoading}
               onSelect={handleContactSelect}
             />
-          </>
+          </div>
         )}
       </div>
 

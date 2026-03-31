@@ -1,17 +1,27 @@
 import React from 'react';
+import type { ProcessingPhase } from '../hooks/useSendPayment';
 
 export interface ProcessingStepProps {
   /** Operation type to customize messaging (default: 'payment') */
   operationType?: 'payment' | 'auth';
+  /** Processing phase for conversion payments */
+  processingPhase?: ProcessingPhase;
 }
 
-const ProcessingStep: React.FC<ProcessingStepProps> = ({ operationType = 'payment' }) => {
+const ProcessingStep: React.FC<ProcessingStepProps> = ({ operationType = 'payment', processingPhase = 'sending' }) => {
   const isAuth = operationType === 'auth';
+  const isConverting = processingPhase === 'converting';
 
-  const getTitle = () => isAuth ? 'Authenticating...' : 'Sending...';
-  const getDescription = () => isAuth
-    ? 'Please wait while we verify your identity...'
-    : 'Please wait while we process your transaction...';
+  const getTitle = () => {
+    if (isAuth) return 'Authenticating...';
+    if (isConverting) return 'Converting...';
+    return 'Sending...';
+  };
+  const getDescription = () => {
+    if (isAuth) return 'Please wait while we verify your identity...';
+    if (isConverting) return 'Please wait while we convert the amount...';
+    return 'Please wait while we process your transaction...';
+  };
 
   // Key icon for auth, lightning bolt for payment
   const renderIcon = () => {

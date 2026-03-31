@@ -5,8 +5,9 @@ import { formatWithCommas } from '../utils/formatNumber';
 import { ArrowDownIcon, ArrowUpIcon, LightningBoltIcon, WalletIcon } from './Icons';
 import { useStableBalance } from '../contexts/StableBalanceContext';
 import { useFiatData } from '../contexts/FiatDataContext';
+import { useContactsContext } from '../contexts/ContactsContext';
 import { formatTokenAmount, buildTokenDisplayConfig, tokenAmountDisplaysAsZero } from '../utils/tokenFormatting';
-import { getPaymentTitle } from '../utils/paymentLabels';
+import { getPaymentDescription } from '../utils/paymentDescription';
 
 // Use centralized formatting utility
 const formatWithSpaces = formatWithCommas;
@@ -66,6 +67,7 @@ interface TransactionListProps {
 const TransactionList: React.FC<TransactionListProps> = ({ transactions, onPaymentSelected, isSyncing }) => {
   const stableBalance = useStableBalance();
   const { fiatCurrencies } = useFiatData();
+  const { findContactByAddress } = useContactsContext();
   // Split transactions into pending deposits and regular payments
   const { confirming, pendingApproval, regularPayments } = useMemo(() => {
     const conf: Payment[] = [];
@@ -143,7 +145,7 @@ const TransactionList: React.FC<TransactionListProps> = ({ transactions, onPayme
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-1.5">
             <p className="text-[15px] font-medium text-spark-text-primary truncate">
-              {getPaymentTitle(tx, stableBalance.displayConfig?.fiatCurrencyName)}
+              {getPaymentDescription(tx, findContactByAddress, stableBalance.displayConfig?.fiatCurrencyName)}
             </p>
             <span className="text-spark-text-muted flex-shrink-0">{getMethodIcon(tx)}</span>
             {isPending && (

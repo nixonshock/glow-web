@@ -9,7 +9,8 @@ import { formatWithSpaces } from '../utils/formatNumber';
 import { useStableBalance } from '../contexts/StableBalanceContext';
 import { getTokenAmountFromPayment, formatTokenAmount, buildTokenDisplayConfig } from '../utils/tokenFormatting';
 import { useFiatData } from '../contexts/FiatDataContext';
-import { getPaymentTitle } from '../utils/paymentLabels';
+import { useContactsContext } from '../contexts/ContactsContext';
+import { getPaymentDescription } from '../utils/paymentDescription';
 
 interface PaymentDetailsDialogProps {
   optionalPayment: Payment | null;
@@ -63,6 +64,7 @@ const PaymentDetailsDialog: React.FC<PaymentDetailsDialogProps> = ({ optionalPay
 
   const stableBalance = useStableBalance();
   const { fiatCurrencies } = useFiatData();
+  const { findContactByAddress } = useContactsContext();
 
   if (!optionalPayment) return (
     <BottomSheetContainer isOpen={optionalPayment != null} onClose={onClose}>
@@ -109,7 +111,7 @@ const PaymentDetailsDialog: React.FC<PaymentDetailsDialogProps> = ({ optionalPay
   return (
     <BottomSheetContainer isOpen={optionalPayment != null} onClose={onClose}>
       <BottomSheetCard>
-        <DialogHeader title={getPaymentTitle(payment, stableBalance.displayConfig?.fiatCurrencyName)} onClose={onClose} />
+        <DialogHeader title={getPaymentDescription(payment, findContactByAddress, stableBalance.displayConfig?.fiatCurrencyName)} onClose={onClose} />
         <div className="space-y-4 overflow-y-auto">
           {/* General Payment Information */}
           <PaymentInfoCard>

@@ -1,11 +1,12 @@
 import { useState, useCallback } from 'react';
-import type { PrepareSendPaymentResponse, FeePolicy, SendPaymentOptions } from '@breeztech/breez-sdk-spark';
+import type { PrepareSendPaymentResponse, FeePolicy, SendPaymentOptions, SdkEvent } from '@breeztech/breez-sdk-spark';
 import type { SendInput } from '@/types/domain';
 import { useWallet } from '../../../contexts/WalletContext';
 import { logger, LogCategory } from '@/services/logger';
 import { formatError } from '@/utils/formatError';
 
 export type SendStep = 'input' | 'amount' | 'workflow' | 'processing' | 'result';
+export type ProcessingPhase = 'sending' | 'converting';
 
 export interface UseSendPaymentReturn {
   // State
@@ -18,13 +19,14 @@ export interface UseSendPaymentReturn {
   paymentResult: 'success' | 'failure' | null;
   balanceSats: number | undefined;
   feesIncluded: boolean;
+  processingPhase: ProcessingPhase;
   // Actions
   clearError: () => void;
   reset: () => void;
   processInput: (input?: string | null) => Promise<void>;
   onAmountNext: (amountNum: number, includeFees?: boolean) => Promise<void>;
   handleSend: (options?: SendPaymentOptions) => Promise<void>;
-  handleRun: (runner: () => Promise<void>) => Promise<void>;
+  handleRun: (runner: () => Promise<void>, hasConversion?: boolean) => Promise<void>;
   setCurrentStep: (step: SendStep) => void;
 }
 
@@ -40,6 +42,7 @@ export function useSendPayment(): UseSendPaymentReturn {
   const [paymentResult, setPaymentResult] = useState<'success' | 'failure' | null>(null);
   const [balanceSats, setBalanceSats] = useState<number | undefined>(undefined);
   const [feesIncluded, setFeesIncluded] = useState(false);
+  const [processingPhase, setProcessingPhase] = useState<ProcessingPhase>('sending');
 
   const fetchBalance = useCallback(() => {
     wallet.getInfo({}).then(info => {
@@ -125,9 +128,41 @@ export function useSendPayment(): UseSendPaymentReturn {
 
   const handleSend = useCallback(async (options?: SendPaymentOptions) => {
     if (!prepareResponse) return;
+    const hasConversion = !!prepareResponse.conversionEstimate;
+    logger.info(LogCategory.PAYMENT, 'handleSend called', {
+      hasConversion,
+      conversionEstimate: prepareResponse.conversionEstimate ? JSON.parse(JSON.stringify(prepareResponse.conversionEstimate)) : null,
+    });
+    setProcessingPhase(hasConversion ? 'converting' : 'sending');
     setCurrentStep('processing');
     setIsLoading(true);
     setError(null);
+
+    let listenerId: string | undefined;
+    if (hasConversion) {
+      try {
+        const initialBalance = (await wallet.getInfo({}))?.balanceSats ?? 0;
+        listenerId = await wallet.addEventListener({
+          onEvent: async (event: SdkEvent) => {
+            if (event.type === 'synced') {
+              try {
+                const currentBalance = (await wallet.getInfo({}))?.balanceSats ?? 0;
+                if (currentBalance > initialBalance) {
+                  logger.debug(LogCategory.PAYMENT, 'Conversion complete, balance increased', {
+                    initialBalance,
+                    currentBalance,
+                  });
+                  setProcessingPhase('sending');
+                }
+              } catch { /* best-effort balance check */ }
+            }
+          },
+        });
+      } catch {
+        // If listener setup fails, just stay on 'converting' — non-critical
+      }
+    }
+
     try {
       await wallet.sendPayment({ prepareResponse, options });
       setPaymentResult('success');
@@ -136,15 +171,46 @@ export function useSendPayment(): UseSendPaymentReturn {
       setError(`Payment failed: ${err instanceof Error ? err.message : 'Unknown error'}`);
       setPaymentResult('failure');
     } finally {
+      if (listenerId) {
+        wallet.removeEventListener(listenerId).catch(() => {});
+      }
+      setProcessingPhase('sending');
       setIsLoading(false);
       setCurrentStep('result');
     }
   }, [wallet, prepareResponse]);
 
-  const handleRun = useCallback(async (runner: () => Promise<void>) => {
+  const handleRun = useCallback(async (runner: () => Promise<void>, hasConversion?: boolean) => {
+    setProcessingPhase(hasConversion ? 'converting' : 'sending');
     setCurrentStep('processing');
     setIsLoading(true);
     setError(null);
+
+    let listenerId: string | undefined;
+    if (hasConversion) {
+      try {
+        const initialBalance = (await wallet.getInfo({}))?.balanceSats ?? 0;
+        listenerId = await wallet.addEventListener({
+          onEvent: async (event: SdkEvent) => {
+            if (event.type === 'synced') {
+              try {
+                const currentBalance = (await wallet.getInfo({}))?.balanceSats ?? 0;
+                if (currentBalance > initialBalance) {
+                  logger.debug(LogCategory.PAYMENT, 'Conversion complete, balance increased', {
+                    initialBalance,
+                    currentBalance,
+                  });
+                  setProcessingPhase('sending');
+                }
+              } catch { /* best-effort balance check */ }
+            }
+          },
+        });
+      } catch {
+        // If listener setup fails, just stay on 'converting' — non-critical
+      }
+    }
+
     try {
       await runner();
       setPaymentResult('success');
@@ -153,10 +219,14 @@ export function useSendPayment(): UseSendPaymentReturn {
       setError(`Operation failed: ${err instanceof Error ? err.message : 'Unknown error'}`);
       setPaymentResult('failure');
     } finally {
+      if (listenerId) {
+        wallet.removeEventListener(listenerId).catch(() => {});
+      }
+      setProcessingPhase('sending');
       setIsLoading(false);
       setCurrentStep('result');
     }
-  }, []);
+  }, [wallet]);
 
   const reset = useCallback(() => {
     setCurrentStep('input');
@@ -168,6 +238,7 @@ export function useSendPayment(): UseSendPaymentReturn {
     setFeesIncluded(false);
     setPaymentInput(null);
     setPaymentResult(null);
+    setProcessingPhase('sending');
   }, []);
 
   return {
@@ -180,6 +251,7 @@ export function useSendPayment(): UseSendPaymentReturn {
     paymentResult,
     balanceSats,
     feesIncluded,
+    processingPhase,
     clearError: useCallback(() => setError(null), []),
     reset,
     processInput,
