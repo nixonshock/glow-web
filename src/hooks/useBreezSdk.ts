@@ -95,7 +95,6 @@ export interface BreezSdkActions {
 
 export function useBreezSdk(
   showToast: (type: 'success' | 'error' | 'info', title: string, message?: string) => void,
-  formatPaymentAmountRef?: React.MutableRefObject<((payment: Payment) => string) | undefined>,
 ): BreezSdkState & BreezSdkActions {
   // Core state
   const [sdk, setSdk] = useState<BreezSdk | null>(null);
@@ -190,16 +189,8 @@ export function useBreezSdk(
           'conversionInfo' in event.payment.details &&
           event.payment.details.conversionInfo != null;
 
-        if (!hasConversionInfo) {
-          if (isReceived) {
-            setCelebrationPayment(event.payment);
-          } else {
-            const formatter = formatPaymentAmountRef?.current;
-            const formattedAmount = formatter
-              ? formatter(event.payment)
-              : `${event.payment.amount} sats`;
-            showToastRef.current('success', 'Payment Sent', `${formattedAmount} sent successfully`);
-          }
+        if (!hasConversionInfo && isReceived) {
+          setCelebrationPayment(event.payment);
         }
         // Send toast suppressed — ResultStep dialog already shows success
       }

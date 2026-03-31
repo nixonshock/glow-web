@@ -43,7 +43,7 @@ const AppContent: React.FC = () => {
 
   useIOSViewportFix();
 
-  const sdk = useBreezSdk(showToast, formatPaymentAmountRef);
+  const sdk = useBreezSdk(showToast);
 
   // Auto-navigate to wallet when SDK reconnects from saved mnemonic
   useEffect(() => {

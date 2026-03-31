@@ -47,9 +47,9 @@ export function buildTokenDisplayConfig(
     };
   }
 
-  // Fallback: strip token-specific suffix for display (e.g. "USDB" → "USD")
-  const TICKER_DISPLAY_OVERRIDES: Record<string, string> = { USDB: 'USD' };
-  const displayTicker = TICKER_DISPLAY_OVERRIDES[tokenMetadata.ticker] ?? tokenMetadata.ticker;
+  // Fallback: use currency symbol when fiatCurrencies haven't loaded yet
+  const TICKER_SYMBOL_OVERRIDES: Record<string, string> = { USDB: '$' };
+  const displayTicker = TICKER_SYMBOL_OVERRIDES[tokenMetadata.ticker] ?? tokenMetadata.ticker;
 
   return {
     symbol: displayTicker,
