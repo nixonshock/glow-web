@@ -2,7 +2,8 @@ import React, { useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
 import type { Payment } from '@breeztech/breez-sdk-spark';
 import { useStableBalance } from '../contexts/StableBalanceContext';
-import { getTokenAmountFromPayment, formatTokenAmount } from '../utils/tokenFormatting';
+import { useFiatData } from '../contexts/FiatDataContext';
+import { getTokenAmountFromPayment, formatTokenAmount, buildTokenDisplayConfig } from '../utils/tokenFormatting';
 
 // Star positions around the logo (same as sidebar)
 const STARS = [
@@ -23,6 +24,7 @@ interface PaymentReceivedCelebrationProps {
 
 const PaymentReceivedCelebration: React.FC<PaymentReceivedCelebrationProps> = ({ payment, onClose }) => {
   const stableBalance = useStableBalance();
+  const { fiatCurrencies } = useFiatData();
   const [isVisible, setIsVisible] = useState(false);
   const [starsAnimating, setStarsAnimating] = useState(false);
 
@@ -50,12 +52,12 @@ const PaymentReceivedCelebration: React.FC<PaymentReceivedCelebrationProps> = ({
   };
 
   // Determine display: token amount or sats
+  // Always show token denomination for token payments, even if stable balance is off
   let displayText: string | null = null;
-  if (stableBalance.isActive && stableBalance.displayConfig) {
-    const tokenInfo = getTokenAmountFromPayment(payment);
-    if (tokenInfo) {
-      displayText = formatTokenAmount(tokenInfo.amount, stableBalance.displayConfig);
-    }
+  const tokenInfo = getTokenAmountFromPayment(payment);
+  if (tokenInfo) {
+    const config = stableBalance.displayConfig ?? buildTokenDisplayConfig(tokenInfo.metadata, fiatCurrencies);
+    displayText = formatTokenAmount(tokenInfo.amount, config);
   }
 
   return createPortal(

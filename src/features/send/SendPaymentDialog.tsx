@@ -76,13 +76,20 @@ const SendPaymentDialog: React.FC<SendPaymentDialogProps> = ({ isOpen, onClose, 
     ? 'Send'
     : getPaymentMethodName(send.paymentInput);
 
+  const recipientLabel = useMemo(() => {
+    if (send.paymentInput?.parsedInput.type !== 'lightningAddress') return undefined;
+    const address = send.paymentInput.rawInput;
+    const contact = findContactByAddress(address);
+    return contact ? `Pay to ${contact.name}` : `Pay to ${address}`;
+  }, [send.paymentInput, findContactByAddress]);
+
   const lnurlPayDetails = getLnurlPayRequestDetails(send.paymentInput);
   const lnurlAuthDetails = getLnurlAuthRequestDetails(send.paymentInput);
 
   return (
     <BottomSheetContainer isOpen={isOpen} onClose={handleClose} showBackdrop>
       <BottomSheetCard>
-        <div className="relative overflow-hidden">
+        <div className="relative overflow-x-clip">
           {/* Contacts sub-view — slides in from right */}
           <div
             className={`transition-all duration-200 ease-out ${
@@ -178,6 +185,7 @@ const SendPaymentDialog: React.FC<SendPaymentDialogProps> = ({ isOpen, onClose, 
                 {lnurlPayDetails && (
                   <LnurlWorkflow
                     parsed={lnurlPayDetails}
+                    recipientLabel={recipientLabel}
                     balanceSats={send.balanceSats}
                     onBack={() => send.setCurrentStep('input')}
                     onRun={send.handleRun}

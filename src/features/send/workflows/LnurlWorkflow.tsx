@@ -11,6 +11,7 @@ import CurrencySwitcher from '../../../components/ui/CurrencySwitcher';
 
 interface LnurlWorkflowProps {
   parsed: LnurlPayRequestDetails;
+  recipientLabel?: string;
   balanceSats?: number;
   onBack: () => void;
   onRun: (runner: () => Promise<void>) => Promise<void>;
@@ -18,7 +19,7 @@ interface LnurlWorkflowProps {
   onPay: (prepareResponse: PrepareLnurlPayResponse) => Promise<void>;
 }
 
-const LnurlWorkflow: React.FC<LnurlWorkflowProps> = ({ parsed, balanceSats, onBack, onRun, onPrepare, onPay }) => {
+const LnurlWorkflow: React.FC<LnurlWorkflowProps> = ({ parsed, recipientLabel, balanceSats, onBack, onRun, onPrepare, onPay }) => {
   const stableBalance = useStableBalance();
   const hasTokenConfig = !!stableBalance.displayConfig;
   const [isTokenMode, setIsTokenMode] = useState(stableBalance.isActive && hasTokenConfig);
@@ -148,7 +149,7 @@ const LnurlWorkflow: React.FC<LnurlWorkflowProps> = ({ parsed, balanceSats, onBa
     <div className="space-y-5">
       {/* Description */}
       <div className="text-center">
-        <p className="text-spark-text-primary font-medium">{description}</p>
+        <p className="text-spark-text-primary font-medium">{recipientLabel ?? description}</p>
       </div>
 
       {/* Amount input */}
