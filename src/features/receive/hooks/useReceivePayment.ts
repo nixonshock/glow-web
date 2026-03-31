@@ -83,7 +83,7 @@ export function useReceivePayment(): UseReceivePaymentReturn {
     setBitcoinLoading(true);
     try {
       const receiveResponse = await wallet.receivePayment({
-        paymentMethod: { type: 'bitcoinAddress' },
+        paymentMethod: { type: 'bitcoinAddress', newAddress: true },
       });
       setBitcoinAddress(receiveResponse.paymentRequest);
     } catch (err) {
