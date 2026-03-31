@@ -1,8 +1,8 @@
 # Glow Web App
 
-A demo web and PWA app showing how to implement [Breez SDK](https://sdk-doc-spark.breez.technology/) with WebAssembly. 
+A demo web and PWA app showing how to implement [Breez SDK](https://sdk-doc-spark.breez.technology/) with WebAssembly.
 
-See it in action [here](https://glow-app.co). 
+See it in action [here](https://glow-app.co).
 
 ## Overview
 
@@ -16,7 +16,6 @@ Built with React, this demo app showcases best practices for integrating Lightni
 - [Breez SDK](https://sdk-doc-spark.breez.technology/) for all the bitcoin functionality
 - React with TypeScript
 - Tailwind CSS for styling
-
 
 ## Getting Started
 
@@ -67,4 +66,4 @@ The build output will be in the `dist` directory.
 
 ## Security Note
 
-If you don’t use a passkey (recommended), your recovery phrase is stored in localStorage which is not a secure storage mechanism. Any JavaScript running in the browser (including XSS attacks or malicious extensions) can access it, potentially compromising your funds.
+If you don’t use a passkey (recommended), your recovery phrase is stored in `localStorage` which is not a secure storage mechanism. Any JavaScript running in the browser (including XSS attacks or malicious extensions) can access it, potentially compromising your funds.
