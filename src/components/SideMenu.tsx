@@ -188,9 +188,14 @@ const SideMenu: React.FC<SideMenuProps> = ({ isOpen, onClose, onLogout, onOpenSe
 
             {/* Footer */}
             <div className="pt-6 pb-6 border-t border-spark-border">
-              <p className="text-xs text-spark-text-muted text-center">
+              <a
+                href="https://breez.technology/sdk/"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="block text-xs text-spark-text-muted text-center hover:text-spark-text-secondary transition-colors"
+              >
                 Powered by Breez SDK
-              </p>
+              </a>
             </div>
 
             {/* Logout Confirmation Dialog */}
