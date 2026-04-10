@@ -1,5 +1,5 @@
 import { useState, useCallback } from 'react';
-import type { PrepareSendPaymentResponse, FeePolicy, SendPaymentOptions, SdkEvent } from '@breeztech/breez-sdk-spark';
+import type { PrepareSendPaymentResponse, FeePolicy, SendPaymentOptions, SdkEvent, ConversionOptions } from '@breeztech/breez-sdk-spark';
 import type { SendInput } from '@/types/domain';
 import { useWallet } from '../../../contexts/WalletContext';
 import { logger, LogCategory } from '@/services/logger';
@@ -24,7 +24,7 @@ export interface UseSendPaymentReturn {
   clearError: () => void;
   reset: () => void;
   processInput: (input?: string | null) => Promise<void>;
-  onAmountNext: (amountNum: number, includeFees?: boolean) => Promise<void>;
+  onAmountNext: (amountNum: number, includeFees?: boolean, tokenIdentifier?: string, conversionOptions?: ConversionOptions) => Promise<void>;
   handleSend: (options?: SendPaymentOptions) => Promise<void>;
   handleRun: (runner: () => Promise<void>, hasConversion?: boolean) => Promise<void>;
   setCurrentStep: (step: SendStep) => void;
@@ -50,7 +50,13 @@ export function useSendPayment(): UseSendPaymentReturn {
     }).catch(() => { /* balance fetch is best-effort */ });
   }, [wallet]);
 
-  const prepareSend = useCallback(async (paymentRequest: string, amountSats: number, feePolicy?: FeePolicy) => {
+  const prepareSend = useCallback(async (
+    paymentRequest: string,
+    amountSats: number,
+    feePolicy?: FeePolicy,
+    tokenIdentifier?: string,
+    conversionOptions?: ConversionOptions,
+  ) => {
     if (amountSats <= 0) {
       setError('Please enter a valid amount');
       return;
@@ -58,7 +64,13 @@ export function useSendPayment(): UseSendPaymentReturn {
     setIsLoading(true);
     setError(null);
     try {
-      const response = await wallet.prepareSendPayment({ paymentRequest, amount: BigInt(amountSats), feePolicy });
+      const response = await wallet.prepareSendPayment({
+        paymentRequest,
+        amount: BigInt(amountSats),
+        feePolicy,
+        tokenIdentifier,
+        conversionOptions,
+      });
       setPrepareResponse(response);
       setCurrentStep('workflow');
     } catch (err) {
@@ -112,17 +124,23 @@ export function useSendPayment(): UseSendPaymentReturn {
     }
   }, [wallet, paymentInput?.rawInput, prepareSend, fetchBalance]);
 
-  const onAmountNext = useCallback(async (amountNum: number, includeFees?: boolean) => {
+  const onAmountNext = useCallback(async (
+    amountNum: number,
+    includeFees?: boolean,
+    tokenIdentifier?: string,
+    conversionOptions?: ConversionOptions,
+  ) => {
     if (!amountNum || amountNum <= 0) {
       setError('Please enter a valid amount');
       return;
     }
-    setAmount(String(amountNum));
     setFeesIncluded(!!includeFees);
     await prepareSend(
       paymentInput?.rawInput || '',
       amountNum,
       includeFees ? 'feesIncluded' : undefined,
+      tokenIdentifier,
+      conversionOptions,
     );
   }, [paymentInput?.rawInput, prepareSend]);
 

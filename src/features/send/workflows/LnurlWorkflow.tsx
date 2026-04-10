@@ -6,7 +6,8 @@ import ConfirmStep from '../steps/ConfirmStep';
 import { logger, LogCategory } from '@/services/logger';
 import { SpinnerIcon } from '@/components/Icons';
 import { useStableBalance } from '../../../contexts/StableBalanceContext';
-import { fiatToSats, TOKEN_QUICK_AMOUNTS, sanitizeTokenInput, formatQuickAmount } from '../../../utils/tokenFormatting';
+import { useWallet } from '../../../contexts/WalletContext';
+import { fiatToSats, getTokenBalance, TOKEN_QUICK_AMOUNTS, sanitizeTokenInput, formatQuickAmount } from '../../../utils/tokenFormatting';
 import CurrencySwitcher from '../../../components/ui/CurrencySwitcher';
 
 interface LnurlWorkflowProps {
@@ -20,9 +21,21 @@ interface LnurlWorkflowProps {
 }
 
 const LnurlWorkflow: React.FC<LnurlWorkflowProps> = ({ parsed, recipientLabel, balanceSats, onBack, onRun, onPrepare, onPay }) => {
+  const wallet = useWallet();
   const stableBalance = useStableBalance();
   const hasTokenConfig = !!stableBalance.displayConfig;
   const [isTokenMode, setIsTokenMode] = useState(stableBalance.isActive && hasTokenConfig);
+  const [tokenBalanceRaw, setTokenBalanceRaw] = useState<bigint | null>(null);
+
+  // Fetch token balance for send-all in token mode
+  useEffect(() => {
+    if (!stableBalance.isActive || !stableBalance.tokenIdentifier) return;
+    wallet.getInfo({}).then(info => {
+      if (!info || !stableBalance.tokenIdentifier) return;
+      const tb = getTokenBalance(info.tokenBalances, stableBalance.tokenIdentifier);
+      setTokenBalanceRaw(tb?.balance ?? null);
+    }).catch(() => {});
+  }, [wallet, stableBalance.isActive, stableBalance.tokenIdentifier]);
 
   const [step, setStep] = useState<PaymentStep>('amount');
   const [amount, setAmount] = useState<string>('');
@@ -47,6 +60,21 @@ const LnurlWorkflow: React.FC<LnurlWorkflowProps> = ({ parsed, recipientLabel, b
     if (balanceSats !== undefined && balanceSats > 0) return Math.min(balanceSats, maxSats);
     return null;
   }, [balanceSats, maxSats]);
+
+  // Token send-all: format token balance as display string using BigInt math
+  // (matches formatTokenAmount used by the balance header)
+  const tokenBalanceDisplay = useMemo(() => {
+    if (!tokenBalanceRaw || !stableBalance.displayConfig) return null;
+    const { decimals, fractionSize } = stableBalance.displayConfig;
+    const divisor = BigInt(10 ** decimals);
+    const wholePart = tokenBalanceRaw / divisor;
+    const fractionalPart = tokenBalanceRaw % divisor;
+    const fractionalStr = fractionalPart.toString().padStart(decimals, '0').slice(0, fractionSize);
+    return `${wholePart}.${fractionalStr}`;
+  }, [tokenBalanceRaw, stableBalance.displayConfig]);
+
+  const hasTokenBalance = tokenBalanceRaw !== null && tokenBalanceRaw > 0n;
+  const isSendAllToken = isTokenMode && hasTokenBalance && amount === tokenBalanceDisplay && feesIncluded;
   const description = useMemo(() => {
     const metadataArr = JSON.parse(parsed.metadataStr);
     for (let i = 0; i < metadataArr.length; i++) {
@@ -101,7 +129,23 @@ const LnurlWorkflow: React.FC<LnurlWorkflowProps> = ({ parsed, recipientLabel, b
     setIsLoading(true);
     setError(null);
     try {
-      const resp = await onPrepare({ amountSats: sats, comment: comment ? comment : undefined, payRequest: parsed, feePolicy: feesIncluded ? 'feesIncluded' : undefined });
+      const prepareRequest: PrepareLnurlPayRequest = {
+        amount: BigInt(sats),
+        comment: comment ? comment : undefined,
+        payRequest: parsed,
+        feePolicy: feesIncluded ? 'feesIncluded' : undefined,
+      };
+
+      // Token send-all: pass conversion options and token identifier
+      if (isSendAllToken && stableBalance.tokenIdentifier && tokenBalanceRaw) {
+        prepareRequest.amount = tokenBalanceRaw;
+        prepareRequest.tokenIdentifier = stableBalance.tokenIdentifier;
+        prepareRequest.conversionOptions = {
+          conversionType: { type: 'toBitcoin', fromTokenIdentifier: stableBalance.tokenIdentifier },
+        };
+      }
+
+      const resp = await onPrepare(prepareRequest);
       setPrepareResponse(resp);
       setStep('confirm');
     } catch (err) {
@@ -130,9 +174,11 @@ const LnurlWorkflow: React.FC<LnurlWorkflowProps> = ({ parsed, recipientLabel, b
   }, [prepareResponse]);
 
   if (step === 'confirm' && prepareResponse) {
-    const confirmAmountSats = isTokenMode && stableBalance.btcFiatRate > 0
-      ? BigInt(fiatToSats(parseFloat(amount), stableBalance.btcFiatRate))
-      : BigInt(parseInt(amount, 10));
+    const confirmAmountSats = isSendAllToken
+      ? BigInt(prepareResponse.amountSats)
+      : isTokenMode && stableBalance.btcFiatRate > 0
+        ? BigInt(fiatToSats(parseFloat(amount), stableBalance.btcFiatRate))
+        : BigInt(parseInt(amount, 10));
     return (
       <ConfirmStep amountSats={confirmAmountSats} feesSat={feesSat} feesIncluded={feesIncluded} conversionEstimate={conversionEstimate} error={error} isLoading={isLoading} onConfirm={onConfirm} />
     );
@@ -142,7 +188,8 @@ const LnurlWorkflow: React.FC<LnurlWorkflowProps> = ({ parsed, recipientLabel, b
     ? amount !== '' && parseFloat(amount) > 0
     : amount !== '' && parseInt(amount) > 0;
   const amountNum = isTokenMode ? parseFloat(amount) || 0 : parseInt(amount) || 0;
-  const isSendAll = sendAllAmount !== null && amountNum === sendAllAmount && feesIncluded;
+  const isSendAllSats = !stableBalance.isActive && sendAllAmount !== null && amountNum === sendAllAmount && feesIncluded;
+  const isSendAll = isSendAllSats || isSendAllToken;
 
   // amount + optional comment form
   return (
@@ -215,9 +262,17 @@ const LnurlWorkflow: React.FC<LnurlWorkflowProps> = ({ parsed, recipientLabel, b
               {formatQuickAmount(quickAmount, stableBalance.displayConfig, isTokenMode)}
             </button>
           ))}
-          {!isTokenMode && sendAllAmount !== null && sendAllAmount >= minSats && (
+          {(hasTokenBalance || (!stableBalance.isActive && sendAllAmount !== null && sendAllAmount >= minSats)) && (
             <button
-              onClick={() => { setAmount(String(sendAllAmount)); setFeesIncluded(true); }}
+              onClick={() => {
+                if (hasTokenBalance && tokenBalanceDisplay) {
+                  if (!isTokenMode) setIsTokenMode(true);
+                  setAmount(tokenBalanceDisplay);
+                } else if (sendAllAmount !== null) {
+                  setAmount(String(sendAllAmount));
+                }
+                setFeesIncluded(true);
+              }}
               className={`flex-1 py-2 text-sm font-medium rounded-lg transition-all ${
                 isSendAll
                   ? 'bg-spark-primary text-white'
