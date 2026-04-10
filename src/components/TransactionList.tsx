@@ -169,7 +169,7 @@ const TransactionList: React.FC<TransactionListProps> = ({ transactions, onPayme
                 if (tokenAmountDisplaysAsZero(feeBigInt, config)) return null;
                 feeText = formatTokenAmount(feeBigInt, config);
               } else {
-                feeText = `₿${formatWithSpaces(Number(tx.fees))}`;
+                feeText = formatWithSpaces(Number(tx.fees));
               }
               return (
                 <>
