@@ -1,9 +1,12 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useMemo } from 'react';
+import type { ConversionOptions } from '@breeztech/breez-sdk-spark';
 import { FormError, PrimaryButton, SecondaryButton } from '../../../components/ui';
 import { SpinnerIcon } from '../../../components/Icons';
 import { useStableBalance } from '../../../contexts/StableBalanceContext';
+import { useWallet } from '../../../contexts/WalletContext';
 import {
   fiatToSats,
+  getTokenBalance,
   TOKEN_QUICK_AMOUNTS,
   SATS_QUICK_AMOUNTS,
   formatQuickAmount,
@@ -18,7 +21,7 @@ export interface AmountStepProps {
   isLoading: boolean;
   error: string | null;
   onBack: () => void;
-  onNext: (amountSats: number, feesIncluded?: boolean) => void;
+  onNext: (amountSats: number, feesIncluded?: boolean, tokenIdentifier?: string, conversionOptions?: ConversionOptions) => void;
 }
 
 const AmountStep: React.FC<AmountStepProps> = ({
@@ -30,6 +33,7 @@ const AmountStep: React.FC<AmountStepProps> = ({
   onBack,
   onNext,
 }) => {
+  const wallet = useWallet();
   const stableBalance = useStableBalance();
   const hasTokenConfig = !!stableBalance.displayConfig;
   const [isTokenMode, setIsTokenMode] = useState(stableBalance.isActive && hasTokenConfig);
@@ -37,6 +41,17 @@ const AmountStep: React.FC<AmountStepProps> = ({
 
   const [localAmount, setLocalAmount] = useState<string>(amount || '');
   const [feesIncluded, setFeesIncluded] = useState(false);
+  const [tokenBalanceRaw, setTokenBalanceRaw] = useState<bigint | null>(null);
+
+  // Fetch token balance for send-all in token mode
+  useEffect(() => {
+    if (!stableBalance.isActive || !stableBalance.tokenIdentifier) return;
+    wallet.getInfo({}).then(info => {
+      if (!info || !stableBalance.tokenIdentifier) return;
+      const tb = getTokenBalance(info.tokenBalances, stableBalance.tokenIdentifier);
+      setTokenBalanceRaw(tb?.balance ?? null);
+    }).catch(() => {});
+  }, [wallet, stableBalance.isActive, stableBalance.tokenIdentifier]);
 
   useEffect(() => {
     setLocalAmount(amount || '');
@@ -68,7 +83,15 @@ const AmountStep: React.FC<AmountStepProps> = ({
 
   const handleNext = () => {
     if (!validAmount) return;
-    if (isTokenMode && config && stableBalance.btcFiatRate > 0) {
+    if (isTokenMode && isSendAllToken && tokenBalanceRaw && stableBalance.tokenIdentifier) {
+      // Send-all in token mode: pass token balance as amount with conversion options
+      onNext(
+        Number(tokenBalanceRaw),
+        true,
+        stableBalance.tokenIdentifier,
+        { conversionType: { type: 'toBitcoin', fromTokenIdentifier: stableBalance.tokenIdentifier } },
+      );
+    } else if (isTokenMode && config && stableBalance.btcFiatRate > 0) {
       const fiatAmount = parseFloat(localAmount);
       if (!fiatAmount || fiatAmount <= 0) return;
       const sats = fiatToSats(fiatAmount, stableBalance.btcFiatRate);
@@ -83,8 +106,26 @@ const AmountStep: React.FC<AmountStepProps> = ({
   const quickAmounts = isTokenMode ? TOKEN_QUICK_AMOUNTS : SATS_QUICK_AMOUNTS;
 
   const amountNum = isTokenMode ? parseFloat(localAmount) || 0 : parseInt(localAmount) || 0;
-  const showSendAll = !isTokenMode && balanceSats !== undefined && balanceSats > 0;
-  const isSendAll = showSendAll && amountNum === balanceSats && feesIncluded;
+
+  // Token send-all: format token balance as display string using BigInt math
+  // (matches formatTokenAmount used by the balance header)
+  const tokenBalanceDisplay = useMemo(() => {
+    if (!tokenBalanceRaw || !config) return null;
+    const { decimals, fractionSize } = config;
+    const divisor = BigInt(10 ** decimals);
+    const wholePart = tokenBalanceRaw / divisor;
+    const fractionalPart = tokenBalanceRaw % divisor;
+    const fractionalStr = fractionalPart.toString().padStart(decimals, '0').slice(0, fractionSize);
+    return `${wholePart}.${fractionalStr}`;
+  }, [tokenBalanceRaw, config]);
+
+  // Send All: when stable balance is active, always use token path (switch to token mode if needed)
+  // When stable balance is not active, use sats path
+  const hasTokenBalance = tokenBalanceRaw !== null && tokenBalanceRaw > 0n;
+  const showSendAll = hasTokenBalance || (!stableBalance.isActive && balanceSats !== undefined && balanceSats > 0);
+  const isSendAllToken = isTokenMode && hasTokenBalance && localAmount === tokenBalanceDisplay && feesIncluded;
+  const isSendAllSats = !isTokenMode && !stableBalance.isActive && balanceSats !== undefined && amountNum === balanceSats && feesIncluded;
+  const isSendAll = isSendAllSats || isSendAllToken;
 
   const amountLabel = 'Amount';
 
@@ -135,7 +176,7 @@ const AmountStep: React.FC<AmountStepProps> = ({
               onClick={() => { setLocalAmount(String(quickAmount)); setFeesIncluded(false); }}
               className={`flex-1 py-2 rounded-lg text-sm font-mono font-medium transition-all ${
                 amountNum === quickAmount && !isSendAll
-                  ? 'bg-spark-electric text-white'
+                  ? 'bg-spark-primary text-white'
                   : 'bg-transparent border border-spark-border text-spark-text-secondary hover:text-spark-text-primary hover:border-spark-border-light'
               }`}
             >
@@ -144,10 +185,19 @@ const AmountStep: React.FC<AmountStepProps> = ({
           ))}
           {showSendAll && (
             <button
-              onClick={() => { setLocalAmount(String(balanceSats)); setFeesIncluded(true); }}
+              onClick={() => {
+                if (hasTokenBalance && tokenBalanceDisplay) {
+                  // When stable balance is active, always use token path
+                  if (!isTokenMode) setIsTokenMode(true);
+                  setLocalAmount(tokenBalanceDisplay);
+                } else {
+                  setLocalAmount(String(balanceSats));
+                }
+                setFeesIncluded(true);
+              }}
               className={`flex-1 py-2 rounded-lg text-sm font-medium transition-all ${
                 isSendAll
-                  ? 'bg-spark-electric text-white'
+                  ? 'bg-spark-primary text-white'
                   : 'bg-transparent border border-spark-border text-spark-text-secondary hover:text-spark-text-primary hover:border-spark-border-light'
               }`}
             >

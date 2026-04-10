@@ -65,6 +65,7 @@ export const shareOrDownloadLogs = async (): Promise<void> => {
         return;
       } catch (e) {
         if ((e as Error).name === 'AbortError') return;
+        // Share failed (e.g., desktop browser) — fall through to download
       }
     }
   }
@@ -75,6 +76,9 @@ export const shareOrDownloadLogs = async (): Promise<void> => {
   a.download = filename;
   document.body.appendChild(a);
   a.click();
-  a.remove();
-  URL.revokeObjectURL(url);
+  // Delay cleanup to let browser start the download
+  setTimeout(() => {
+    a.remove();
+    URL.revokeObjectURL(url);
+  }, 1000);
 };

@@ -28,7 +28,7 @@ const ConfirmStep: React.FC<ConfirmStepProps> = ({ amountSats, feesSat, feesIncl
 
   // Token-formatted values from conversion estimate
   const tokenAmount = isTokenMode
-    ? formatTokenAmount(BigInt(conversionEstimate!.amount), stableBalance.displayConfig!)
+    ? formatTokenAmount(BigInt(conversionEstimate!.amountIn), stableBalance.displayConfig!)
     : null;
   const tokenFee = isTokenMode
     ? formatTokenAmount(BigInt(conversionEstimate!.fee), stableBalance.displayConfig!, { fullPrecision: true })
