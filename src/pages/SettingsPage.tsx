@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { FormGroup, FormInput, LoadingSpinner, PrimaryButton, Switch } from '../components/ui';
-import { getSettings, saveSettings, UserSettings, STABLE_BALANCE_VISIBLE_KEY } from '../services/settings';
+import { getSettings, saveSettings, UserSettings } from '../services/settings';
 import type { Config, Network } from '@breeztech/breez-sdk-spark';
 import { useWallet } from '@/contexts/WalletContext';
 import { CurrencyIcon, ChevronRightIcon, DownloadIcon } from '../components/Icons';
@@ -38,9 +38,6 @@ const SettingsPage: React.FC<SettingsPageProps> = ({ onBack, config, onOpenFiatC
   const [sparkPrivateModeEnabled, setSparkPrivateModeEnabled] = useState<boolean>(true);
   const [isLoadingUserSettings, setIsLoadingUserSettings] = useState<boolean>(true);
 
-  const [stableBalanceToggleVisible, setStableBalanceToggleVisible] = useState<boolean>(
-    () => localStorage.getItem(STABLE_BALANCE_VISIBLE_KEY) === 'true'
-  );
   const [isDownloadingLogs, setIsDownloadingLogs] = useState<boolean>(false);
 
   useEffect(() => {
@@ -306,23 +303,6 @@ const SettingsPage: React.FC<SettingsPageProps> = ({ onBack, config, onOpenFiatC
                   <Switch
                     checked={preferSparkOverLightning}
                     onChange={() => setPreferSparkOverLightning(!preferSparkOverLightning)}
-                  />
-                </div>
-              </div>
-
-              <div className="bg-spark-dark border border-spark-border rounded-2xl p-4">
-                <div className="flex items-center justify-between gap-3">
-                  <div>
-                    <span className="font-display font-medium text-spark-text-primary block">Enable Stable Balance</span>
-                    <span className="text-sm text-spark-text-muted">Show the BTC/USD stable balance toggle</span>
-                  </div>
-                  <Switch
-                    checked={stableBalanceToggleVisible}
-                    onChange={() => {
-                      const next = !stableBalanceToggleVisible;
-                      setStableBalanceToggleVisible(next);
-                      localStorage.setItem(STABLE_BALANCE_VISIBLE_KEY, String(next));
-                    }}
                   />
                 </div>
               </div>
