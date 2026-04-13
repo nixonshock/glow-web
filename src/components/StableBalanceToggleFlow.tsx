@@ -17,6 +17,7 @@ interface StableBalanceToggleFlowProps {
   direction: 'toToken' | 'toBitcoin';
   onComplete: () => void;
   onCancel: () => void;
+  restorePrompt?: boolean;
 }
 
 const StableBalanceToggleFlow: React.FC<StableBalanceToggleFlowProps> = ({
@@ -24,6 +25,7 @@ const StableBalanceToggleFlow: React.FC<StableBalanceToggleFlowProps> = ({
   direction,
   onComplete,
   onCancel,
+  restorePrompt,
 }) => {
   const wallet = useWallet();
   const stableBalance = useStableBalance();
@@ -133,10 +135,10 @@ const StableBalanceToggleFlow: React.FC<StableBalanceToggleFlowProps> = ({
       setError(null);
       setInfo(null);
 
-      if (hasAcceptedStableDisclaimer()) {
-        startEstimationRef.current();
-      } else {
+      if (restorePrompt || !hasAcceptedStableDisclaimer()) {
         setStep('disclaimer');
+      } else {
+        startEstimationRef.current();
       }
     }
   }, [isOpen]);
@@ -212,6 +214,14 @@ const StableBalanceToggleFlow: React.FC<StableBalanceToggleFlowProps> = ({
         isOpen
         onAccept={handleDisclaimerAccept}
         onCancel={onCancel}
+        {...(restorePrompt ? {
+          title: 'USD Balance Detected',
+          description:
+            "We've detected USD funds in your wallet. Would you like to switch to USD mode?" +
+            '\n\n' +
+            'Your balance will be held in USD. Incoming BTC is automatically converted to USD, ' +
+            'and outgoing payments are converted back to BTC.',
+        } : {})}
       />
     );
   }

@@ -15,7 +15,7 @@ import { buildConnectConfig } from './buildConnectConfig';
 import { logger, LogCategory, logSdkMessage } from '../services/logger';
 import { formatError } from '../utils/formatError';
 import { isDepositRejected } from '../services/depositState';
-import { setCachedStableTicker, clearNetworkOverride, type BuyBitcoinProvider } from '../services/settings';
+import { setCachedStableTicker, clearNetworkOverride, clearStableRestorePrompted, type BuyBitcoinProvider } from '../services/settings';
 import { hideSplash } from '../main';
 import {
   isPrfAvailable,
@@ -318,6 +318,7 @@ export function useBreezSdk(
     clearMnemonic();
     clearPasskeyMode();
     setCachedStableTicker(null);
+    clearStableRestorePrompted();
     shownPaymentIdsRef.current.clear();
     setIsConnected(false);
     setIsSyncing(false);

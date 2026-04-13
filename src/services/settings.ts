@@ -138,6 +138,21 @@ export function setCachedStableTicker(ticker: string | null): void {
   }
 }
 
+// Stable Balance restore prompt (one-time per wallet)
+const STABLE_RESTORE_PROMPTED_KEY = 'stable_balance_restore_prompted';
+
+export function hasPromptedStableRestore(): boolean {
+  return getCachedItem(STABLE_RESTORE_PROMPTED_KEY) === 'true';
+}
+
+export function setStableRestorePrompted(): void {
+  setCachedItem(STABLE_RESTORE_PROMPTED_KEY, 'true');
+}
+
+export function clearStableRestorePrompted(): void {
+  removeCachedItem(STABLE_RESTORE_PROMPTED_KEY);
+}
+
 /** Ordered list of enabled providers. Providers not in the list are disabled. */
 export function getBuyProviderSettings(): BuyBitcoinProvider[] {
   try {
