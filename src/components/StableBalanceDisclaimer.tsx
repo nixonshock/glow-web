@@ -5,12 +5,22 @@ interface StableBalanceDisclaimerProps {
   isOpen: boolean;
   onAccept: () => void;
   onCancel: () => void;
+  title?: string;
+  description?: string;
 }
+
+const DEFAULT_TITLE = 'Stable Balance';
+const DEFAULT_DESCRIPTION =
+  'Your balance is held in USD. Incoming BTC is automatically converted to USD, ' +
+  'and outgoing payments are converted back to BTC. Amounts under the conversion ' +
+  'threshold remain as change until they accumulate.';
 
 const StableBalanceDisclaimer: React.FC<StableBalanceDisclaimerProps> = ({
   isOpen,
   onAccept,
   onCancel,
+  title = DEFAULT_TITLE,
+  description = DEFAULT_DESCRIPTION,
 }) => {
   if (!isOpen) return null;
 
@@ -19,13 +29,13 @@ const StableBalanceDisclaimer: React.FC<StableBalanceDisclaimerProps> = ({
       <DialogCard maxWidth="sm">
         <div className="text-center">
           <h3 className="font-display text-lg font-bold text-spark-text-primary mb-3">
-            Stable Balance
+            {title}
           </h3>
-          <p className="text-sm text-spark-text-secondary mb-6">
-            Your balance is held in USD. Incoming BTC is automatically converted to USD,
-            and outgoing payments are converted back to BTC. Amounts under the conversion
-            threshold remain as change until they accumulate.
-          </p>
+          <div className="text-sm text-spark-text-secondary mb-6 space-y-3">
+            {description.split('\n\n').map((paragraph, i) => (
+              <p key={i}>{paragraph}</p>
+            ))}
+          </div>
           <div className="flex gap-3">
             <button
               onClick={onCancel}

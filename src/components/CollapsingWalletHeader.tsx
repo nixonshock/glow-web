@@ -8,6 +8,7 @@ import { useStableBalance } from '../contexts/StableBalanceContext';
 import { useFiatData } from '../contexts/FiatDataContext';
 import { getTokenBalance, formatTokenAmount } from '../utils/tokenFormatting';
 import StableBalanceToggleFlow from './StableBalanceToggleFlow';
+import { useRestoreStableBalancePrompt } from '../hooks/useRestoreStableBalancePrompt';
 
 // Module-level flag: once the balance count-up has played, skip it on remount.
 // Resets on full page reload.
@@ -42,6 +43,22 @@ const CollapsingWalletHeader: React.FC<CollapsingWalletHeaderProps> = ({
   const [toggleFlowOpen, setToggleFlowOpen] = useState(false);
   const [toggleDirection, setToggleDirection] = useState<'toToken' | 'toBitcoin'>('toToken');
   const [stableBalanceToggleVisible] = useState(() => localStorage.getItem(STABLE_BALANCE_VISIBLE_KEY) === 'true');
+  const [isRestorePrompt, setIsRestorePrompt] = useState(false);
+
+  const restorePrompt = useRestoreStableBalancePrompt({
+    isSyncing: !!isSyncing,
+    walletInfo,
+    isStableBalanceActive: stableBalance.isActive,
+  });
+
+  // Auto-open toggle flow when restore detects USDB balance
+  useEffect(() => {
+    if (restorePrompt.shouldPrompt) {
+      setToggleDirection('toToken');
+      setIsRestorePrompt(true);
+      setToggleFlowOpen(true);
+    }
+  }, [restorePrompt.shouldPrompt]);
 
   const handleSuffixTap = useCallback(() => {
     if (stableBalance.isToggling) return;
@@ -360,8 +377,16 @@ const CollapsingWalletHeader: React.FC<CollapsingWalletHeaderProps> = ({
     <StableBalanceToggleFlow
       isOpen={toggleFlowOpen}
       direction={toggleDirection}
-      onComplete={() => { refreshWalletData?.(); setToggleFlowOpen(false); }}
-      onCancel={() => setToggleFlowOpen(false)}
+      restorePrompt={isRestorePrompt}
+      onComplete={() => {
+        refreshWalletData?.();
+        setToggleFlowOpen(false);
+        if (isRestorePrompt) { restorePrompt.markPrompted(); setIsRestorePrompt(false); }
+      }}
+      onCancel={() => {
+        setToggleFlowOpen(false);
+        if (isRestorePrompt) { restorePrompt.markPrompted(); setIsRestorePrompt(false); }
+      }}
     />
   </>
   );
