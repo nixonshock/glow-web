@@ -24,7 +24,6 @@ export interface FiatSettings {
 /** All known buy bitcoin providers, in default display order */
 export const ALL_BUY_PROVIDERS: BuyBitcoinProvider[] = ['moonpay', 'cashApp'];
 
-export const STABLE_BALANCE_VISIBLE_KEY = 'stable-balance-toggle-visible';
 const SETTINGS_KEY = 'user_settings_v1';
 const FIAT_SETTINGS_KEY = 'fiat_settings_v1';
 const BUY_PROVIDERS_KEY = 'buy_providers_v1';

@@ -1,6 +1,6 @@
 import React, { useMemo, useState, useCallback, useRef, useEffect } from 'react';
 import type { GetInfoResponse, FiatCurrency } from '@breeztech/breez-sdk-spark';
-import { getFiatSettings, STABLE_BALANCE_VISIBLE_KEY } from '../services/settings';
+import { getFiatSettings } from '../services/settings';
 import { formatWithThinSpaces } from '../utils/formatNumber';
 import { useAnimatedNumber } from '../hooks/useAnimatedNumber';
 import { MenuIcon, AlertTriangleIcon, CurrencyIcon, SpinnerIcon } from './Icons';
@@ -42,7 +42,6 @@ const CollapsingWalletHeader: React.FC<CollapsingWalletHeaderProps> = ({
   const [activeFiatIndex, setActiveFiatIndex] = useState(0);
   const [toggleFlowOpen, setToggleFlowOpen] = useState(false);
   const [toggleDirection, setToggleDirection] = useState<'toToken' | 'toBitcoin'>('toToken');
-  const [stableBalanceToggleVisible] = useState(() => localStorage.getItem(STABLE_BALANCE_VISIBLE_KEY) === 'true');
   const [isRestorePrompt, setIsRestorePrompt] = useState(false);
 
   const restorePrompt = useRestoreStableBalancePrompt({
@@ -306,8 +305,7 @@ const CollapsingWalletHeader: React.FC<CollapsingWalletHeaderProps> = ({
               }`}
             >
               Balance
-              {stableBalanceToggleVisible ? (
-                <button
+              <button
                   type="button"
                   onClick={handleSuffixTap}
                   disabled={stableBalance.isToggling}
@@ -316,9 +314,6 @@ const CollapsingWalletHeader: React.FC<CollapsingWalletHeaderProps> = ({
                   <span className="mx-1.5">·</span>
                   <span className="px-1.5 py-0.5 rounded-full bg-white/5 hover:bg-white/10 active:scale-95 transition-all">{balanceSuffix}</span>
                 </button>
-              ) : (
-                <span className="text-spark-text-muted/50"><span className="mx-1.5">·</span>sats</span>
-              )}
             </span>
           </div>
 
