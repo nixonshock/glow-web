@@ -81,10 +81,24 @@ export const exportDatabaseState = async (): Promise<void> => {
 
     const blob = new Blob([json], { type: 'application/json' });
     const timestamp = Math.floor(Date.now() / 1000);
+    const filename = `${timestamp}_sdk_state.json`;
+
+    if (canShareFiles()) {
+      const file = new File([blob], filename, { type: 'application/json' });
+      if (navigator.canShare({ files: [file] })) {
+        try {
+          await navigator.share({ files: [file], title: 'Glow SDK Database Export' });
+          return;
+        } catch (e) {
+          if ((e as Error).name === 'AbortError') return;
+        }
+      }
+    }
+
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `${timestamp}_sdk_state.json`;
+    a.download = filename;
     document.body.appendChild(a);
     a.click();
     setTimeout(() => {
