@@ -65,6 +65,7 @@ export const exportDatabaseState = async (): Promise<void> => {
     req.onupgradeneeded = () => {
       // DB doesn't exist yet — abort to avoid creating an empty one
       req.transaction!.abort();
+      reject(new Error('Database does not exist'));
     };
     req.onsuccess = () => resolve(req.result);
     req.onerror = () => reject(req.error);
