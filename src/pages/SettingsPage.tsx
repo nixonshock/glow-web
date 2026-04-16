@@ -6,7 +6,7 @@ import { useWallet } from '@/contexts/WalletContext';
 import { CurrencyIcon, ChevronRightIcon, DownloadIcon } from '../components/Icons';
 import SlideInPage from '../components/layout/SlideInPage';
 import { logger, LogCategory } from '@/services/logger';
-import { shareOrDownloadLogs } from '@/services/logExport';
+import { shareOrDownloadLogs, exportDatabaseState } from '@/services/logExport';
 import { useSecretTap } from '@/hooks/useSecretTap';
 
 const DEV_MODE_STORAGE_KEY = 'spark-dev-mode';
@@ -39,6 +39,7 @@ const SettingsPage: React.FC<SettingsPageProps> = ({ onBack, config, onOpenFiatC
   const [isLoadingUserSettings, setIsLoadingUserSettings] = useState<boolean>(true);
 
   const [isDownloadingLogs, setIsDownloadingLogs] = useState<boolean>(false);
+  const [isExportingDb, setIsExportingDb] = useState<boolean>(false);
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
@@ -131,6 +132,19 @@ const SettingsPage: React.FC<SettingsPageProps> = ({ onBack, config, onOpenFiatC
       });
     }
     window.location.reload();
+  };
+
+  const handleExportDb = async () => {
+    setIsExportingDb(true);
+    try {
+      await exportDatabaseState();
+    } catch (e) {
+      logger.warn(LogCategory.SDK, 'Failed to export database state', {
+        error: e instanceof Error ? e.message : String(e),
+      });
+    } finally {
+      setIsExportingDb(false);
+    }
   };
 
   const handleShareLogs = async () => {
@@ -305,6 +319,23 @@ const SettingsPage: React.FC<SettingsPageProps> = ({ onBack, config, onOpenFiatC
                     onChange={() => setPreferSparkOverLightning(!preferSparkOverLightning)}
                   />
                 </div>
+              </div>
+
+              <div className="bg-spark-dark border border-spark-border rounded-2xl p-4">
+                <h3 className="font-display font-semibold text-spark-text-primary mb-3">Database</h3>
+                <button
+                  className="flex items-center gap-2 px-4 py-2.5 text-sm font-medium border border-spark-border rounded-xl text-spark-text-secondary hover:text-spark-text-primary hover:bg-white/5 transition-colors disabled:opacity-50"
+                  type="button"
+                  onClick={handleExportDb}
+                  disabled={isExportingDb}
+                >
+                  {isExportingDb ? (
+                    <LoadingSpinner size="small" />
+                  ) : (
+                    <DownloadIcon size="md" />
+                  )}
+                  {isExportingDb ? 'Exporting...' : 'Export Database'}
+                </button>
               </div>
 
               {/* Privacy Settings - Dev Mode only */}

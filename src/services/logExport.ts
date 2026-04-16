@@ -46,6 +46,56 @@ export const getAllLogsAsZip = async (): Promise<Blob> => {
   return zip.generateAsync({ type: 'blob', compression: 'DEFLATE' });
 };
 
+const DB_NAME = 'BreezSdkSpark';
+
+const dumpIndexedDBStore = (
+  db: IDBDatabase,
+  storeName: string,
+): Promise<unknown[]> =>
+  new Promise((resolve, reject) => {
+    const tx = db.transaction(storeName, 'readonly');
+    const req = tx.objectStore(storeName).getAll();
+    req.onsuccess = () => resolve(req.result);
+    req.onerror = () => reject(req.error);
+  });
+
+export const exportDatabaseState = async (): Promise<void> => {
+  const db = await new Promise<IDBDatabase>((resolve, reject) => {
+    const req = indexedDB.open(DB_NAME);
+    req.onsuccess = () => resolve(req.result);
+    req.onerror = () => reject(req.error);
+  });
+
+  try {
+    const objectStores: Record<string, unknown[]> = {};
+    for (const name of db.objectStoreNames) {
+      objectStores[name] = await dumpIndexedDBStore(db, name);
+    }
+
+    const json = JSON.stringify({
+      database: DB_NAME,
+      version: db.version,
+      generatedAt: new Date().toISOString(),
+      objectStores,
+    }, null, 2);
+
+    const blob = new Blob([json], { type: 'application/json' });
+    const timestamp = Math.floor(Date.now() / 1000);
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `${timestamp}_sdk_state.json`;
+    document.body.appendChild(a);
+    a.click();
+    setTimeout(() => {
+      a.remove();
+      URL.revokeObjectURL(url);
+    }, 1000);
+  } finally {
+    db.close();
+  }
+};
+
 export const canShareFiles = (): boolean => {
   return typeof navigator !== 'undefined' &&
     typeof navigator.share === 'function' &&
