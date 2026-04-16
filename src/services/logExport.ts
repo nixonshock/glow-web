@@ -46,7 +46,7 @@ export const getAllLogsAsZip = async (): Promise<Blob> => {
   return zip.generateAsync({ type: 'blob', compression: 'DEFLATE' });
 };
 
-const DB_NAME = 'BreezSdkSpark';
+const STORAGE_DIR = 'spark-wallet-example';
 
 const dumpIndexedDBStore = (
   db: IDBDatabase,
@@ -59,17 +59,38 @@ const dumpIndexedDBStore = (
     req.onerror = () => reject(req.error);
   });
 
-export const exportDatabaseState = async (): Promise<void> => {
-  const db = await new Promise<IDBDatabase>((resolve, reject) => {
-    const req = indexedDB.open(DB_NAME);
+const buildSdkDatabaseName = async (identityPubkey: string, network: string): Promise<string> => {
+  const pubkeyBytes = new Uint8Array(identityPubkey.length / 2);
+  for (let i = 0; i < pubkeyBytes.length; i++) {
+    pubkeyBytes[i] = parseInt(identityPubkey.substring(i * 2, i * 2 + 2), 16);
+  }
+  const hashBuffer = await crypto.subtle.digest('SHA-256', pubkeyBytes);
+  const hashHex = Array.from(new Uint8Array(hashBuffer))
+    .map(b => b.toString(16).padStart(2, '0'))
+    .join('');
+  return `${STORAGE_DIR}/${network}/${hashHex.substring(0, 8)}`;
+};
+
+const openExistingDatabase = (name: string): Promise<IDBDatabase> =>
+  new Promise((resolve, reject) => {
+    const req = indexedDB.open(name);
     req.onupgradeneeded = () => {
-      // DB doesn't exist yet — abort to avoid creating an empty one
       req.transaction!.abort();
       reject(new Error('Database does not exist'));
     };
     req.onsuccess = () => resolve(req.result);
     req.onerror = () => reject(req.error);
   });
+
+export const exportDatabaseState = async (identityPubkey: string, network: string): Promise<void> => {
+  const dbName = await buildSdkDatabaseName(identityPubkey, network);
+  let db: IDBDatabase;
+  try {
+    db = await openExistingDatabase(dbName);
+  } catch {
+    logger.error(LogCategory.SDK, 'SDK database not found for export', { dbName });
+    throw new Error(`SDK database '${dbName}' does not exist`);
+  }
 
   try {
     const objectStores: Record<string, unknown[]> = {};
@@ -78,7 +99,7 @@ export const exportDatabaseState = async (): Promise<void> => {
     }
 
     const json = JSON.stringify({
-      database: DB_NAME,
+      database: dbName,
       version: db.version,
       generatedAt: new Date().toISOString(),
       objectStores,

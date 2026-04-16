@@ -137,7 +137,8 @@ const SettingsPage: React.FC<SettingsPageProps> = ({ onBack, config, onOpenFiatC
   const handleExportDb = async () => {
     setIsExportingDb(true);
     try {
-      await exportDatabaseState();
+      const info = await wallet.getInfo({});
+      await exportDatabaseState(info.identityPubkey, config?.network ?? 'mainnet');
     } catch (e) {
       logger.warn(LogCategory.SDK, 'Failed to export database state', {
         error: e instanceof Error ? e.message : String(e),
