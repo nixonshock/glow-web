@@ -62,6 +62,10 @@ const dumpIndexedDBStore = (
 export const exportDatabaseState = async (): Promise<void> => {
   const db = await new Promise<IDBDatabase>((resolve, reject) => {
     const req = indexedDB.open(DB_NAME);
+    req.onupgradeneeded = () => {
+      // DB doesn't exist yet — abort to avoid creating an empty one
+      req.transaction!.abort();
+    };
     req.onsuccess = () => resolve(req.result);
     req.onerror = () => reject(req.error);
   });
