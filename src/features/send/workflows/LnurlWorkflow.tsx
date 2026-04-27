@@ -8,8 +8,6 @@ import { SpinnerIcon } from '@/components/Icons';
 import {
   TOKEN_QUICK_AMOUNTS,
   formatQuickAmount,
-  formatTokenAmount,
-  tokenAmountDisplaysAsZero,
 } from '../../../utils/tokenFormatting';
 import CurrencySwitcher from '../../../components/ui/CurrencySwitcher';
 import { useAmountInput } from '../../../hooks/useAmountInput';
@@ -39,7 +37,6 @@ const LnurlWorkflow: React.FC<LnurlWorkflowProps> = ({ parsed, recipientLabel, b
     tokenIdentifier,
     tokenSymbol,
     config,
-    btcFiatRate,
     tokenBalanceDisplay,
     formatSatsAsTokenDisplay,
     tokenSendAllBelowThreshold,
@@ -88,24 +85,6 @@ const LnurlWorkflow: React.FC<LnurlWorkflowProps> = ({ parsed, recipientLabel, b
     && sendAllBtcInTokenDisplay !== null
     && amount === sendAllBtcInTokenDisplay
     && feesIncluded;
-
-  // LNURL min/max range expressed in the token (fiat) display unit. Both
-  // bounds get a ~ prefix because the values are exchange-rate-derived.
-  // Sub-threshold values (e.g. 1 sat at typical BTC prices rounds below
-  // $0.01) snap up to the smallest displayable amount ($0.01) so the range
-  // stays informative rather than rendering as "0.00" or "< $0.01".
-  const tokenRangeDisplay = useMemo(() => {
-    if (!isTokenMode || !config || btcFiatRate <= 0) return null;
-    const minDisplayable = BigInt(10 ** (config.decimals - config.fractionSize));
-    const formatBound = (sats: number) => {
-      const fiat = (sats / 100_000_000) * btcFiatRate;
-      const baseUnits = BigInt(Math.round(fiat * 10 ** config.decimals));
-      return tokenAmountDisplaysAsZero(baseUnits, config)
-        ? formatTokenAmount(minDisplayable, config)
-        : formatTokenAmount(baseUnits, config);
-    };
-    return `~${formatBound(minSats)} – ~${formatBound(maxSats)}`;
-  }, [isTokenMode, config, btcFiatRate, minSats, maxSats]);
 
   const description = useMemo(() => {
     const metadataArr = JSON.parse(parsed.metadataStr);
@@ -282,13 +261,9 @@ const LnurlWorkflow: React.FC<LnurlWorkflowProps> = ({ parsed, recipientLabel, b
           <label className="block text-sm font-medium text-spark-text-primary">
             Amount
           </label>
-          {!isTokenMode ? (
+          {!isTokenMode && (
             <span className="text-xs text-spark-text-secondary">
               {minSats.toLocaleString('en-US').replace(/,/g, ' ')} – {maxSats.toLocaleString('en-US').replace(/,/g, ' ')}
-            </span>
-          ) : tokenRangeDisplay && (
-            <span className="text-xs text-spark-text-secondary">
-              {tokenRangeDisplay}
             </span>
           )}
         </div>
