@@ -1,4 +1,5 @@
 import type { TokenMetadata, FiatCurrency, Payment } from '@breeztech/breez-sdk-spark';
+import { toSats, type Sats } from '../types/sats';
 
 export interface TokenDisplayConfig {
   symbol: string;
@@ -119,6 +120,46 @@ export function formatTokenAmountMinimum(config: TokenDisplayConfig): string {
 export function fiatToSats(fiatAmount: number, btcFiatRate: number): number {
   if (btcFiatRate <= 0) return 0;
   return Math.round((fiatAmount / btcFiatRate) * 100_000_000);
+}
+
+/**
+ * Parse a user-entered amount string to a validated `Sats` value.
+ * - Token mode: input is fiat (e.g. "10.50") → converts via btcFiatRate
+ * - Sats mode: input is integer sats — parsed via BigInt so a 16-digit
+ *   string doesn't lose precision before the bounds check
+ *
+ * Returns null when the input can't produce a positive sats value, or when
+ * the result exceeds the absolute Bitcoin max (21M BTC). Callers can rely
+ * on a non-null return being safe to pass anywhere in the sats domain.
+ */
+export function parseAmountToSats(
+  input: string,
+  isTokenMode: boolean,
+  btcFiatRate: number,
+): Sats | null {
+  if (isTokenMode) {
+    if (!btcFiatRate || btcFiatRate <= 0) return null;
+    const fiat = Number(input);
+    if (!Number.isFinite(fiat) || fiat <= 0) return null;
+    // fiat→sats requires float division; convert the rounded result to
+    // bigint and let toSats() perform the bounds check.
+    const satsNumber = fiatToSats(fiat, btcFiatRate);
+    if (!Number.isFinite(satsNumber)) return null;
+    if (!Number.isSafeInteger(satsNumber)) return null;
+    return toSats(BigInt(satsNumber));
+  }
+  // Sats mode: parse via BigInt to preserve precision on long inputs, then
+  // bounds-check via toSats.
+  const trimmed = input.trim();
+  if (!/^\d+$/.test(trimmed)) return null;
+  let big: bigint;
+  try {
+    big = BigInt(trimmed);
+  } catch {
+    return null;
+  }
+  if (big <= 0n) return null;
+  return toSats(big);
 }
 
 /**

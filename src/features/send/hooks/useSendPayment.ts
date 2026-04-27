@@ -1,7 +1,9 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useMemo } from 'react';
 import type { PrepareSendPaymentResponse, FeePolicy, SendPaymentOptions, SdkEvent, ConversionOptions } from '@breeztech/breez-sdk-spark';
 import type { SendInput } from '@/types/domain';
-import { useWallet } from '../../../contexts/WalletContext';
+import { useWallet, useWalletInfo } from '../../../contexts/WalletContext';
+import { useStableBalance } from '../../../contexts/StableBalanceContext';
+import { getTokenBalance } from '../../../utils/tokenFormatting';
 import { logger, LogCategory } from '@/services/logger';
 import { formatError } from '@/utils/formatError';
 
@@ -18,13 +20,14 @@ export interface UseSendPaymentReturn {
   prepareResponse: PrepareSendPaymentResponse | null;
   paymentResult: 'success' | 'failure' | null;
   balanceSats: number | undefined;
+  tokenBalance: bigint | undefined;
   feesIncluded: boolean;
   processingPhase: ProcessingPhase;
   // Actions
   clearError: () => void;
   reset: () => void;
   processInput: (input?: string | null) => Promise<void>;
-  onAmountNext: (amountNum: number, includeFees?: boolean, tokenIdentifier?: string, conversionOptions?: ConversionOptions) => Promise<void>;
+  onAmountNext: (amount: bigint, includeFees?: boolean, tokenIdentifier?: string, conversionOptions?: ConversionOptions) => Promise<void>;
   handleSend: (options?: SendPaymentOptions) => Promise<void>;
   handleRun: (runner: () => Promise<void>, hasConversion?: boolean) => Promise<void>;
   setCurrentStep: (step: SendStep) => void;
@@ -32,6 +35,8 @@ export interface UseSendPaymentReturn {
 
 export function useSendPayment(): UseSendPaymentReturn {
   const wallet = useWallet();
+  const walletInfo = useWalletInfo();
+  const stableBalance = useStableBalance();
 
   const [currentStep, setCurrentStep] = useState<SendStep>('input');
   const [paymentInput, setPaymentInput] = useState<SendInput | null>(null);
@@ -40,24 +45,29 @@ export function useSendPayment(): UseSendPaymentReturn {
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [prepareResponse, setPrepareResponse] = useState<PrepareSendPaymentResponse | null>(null);
   const [paymentResult, setPaymentResult] = useState<'success' | 'failure' | null>(null);
-  const [balanceSats, setBalanceSats] = useState<number | undefined>(undefined);
   const [feesIncluded, setFeesIncluded] = useState(false);
   const [processingPhase, setProcessingPhase] = useState<ProcessingPhase>('sending');
 
-  const fetchBalance = useCallback(() => {
-    wallet.getInfo({}).then(info => {
-      if (info) setBalanceSats(info.balanceSats);
-    }).catch(() => { /* balance fetch is best-effort */ });
-  }, [wallet]);
+  // Balance is read live from the wallet info context, which is auto-refreshed
+  // by useBreezSdk on `synced`/`paymentSucceeded`/`claimedDeposits` events. We
+  // don't snapshot it locally — that was the bug that caused validation to use
+  // a stale balance after auto-conversion completed mid-flow.
+  const balanceSats = walletInfo?.balanceSats;
+  const tokenBalance = useMemo<bigint | undefined>(() => {
+    if (!walletInfo?.tokenBalances) return undefined;
+    if (!stableBalance.isActive || !stableBalance.tokenIdentifier) return undefined;
+    const tb = getTokenBalance(walletInfo.tokenBalances, stableBalance.tokenIdentifier);
+    return tb ? tb.balance : 0n;
+  }, [walletInfo, stableBalance.isActive, stableBalance.tokenIdentifier]);
 
   const prepareSend = useCallback(async (
     paymentRequest: string,
-    amountSats: number,
+    amount: bigint,
     feePolicy?: FeePolicy,
     tokenIdentifier?: string,
     conversionOptions?: ConversionOptions,
   ) => {
-    if (amountSats <= 0) {
+    if (amount <= 0n) {
       setError('Please enter a valid amount');
       return;
     }
@@ -66,7 +76,7 @@ export function useSendPayment(): UseSendPaymentReturn {
     try {
       const response = await wallet.prepareSendPayment({
         paymentRequest,
-        amount: BigInt(amountSats),
+        amount,
         feePolicy,
         tokenIdentifier,
         conversionOptions,
@@ -100,15 +110,12 @@ export function useSendPayment(): UseSendPaymentReturn {
       if (parseResult.type === 'bolt11Invoice' && parseResult.amountMsat && parseResult.amountMsat > 0) {
         const sats = Math.floor(parseResult.amountMsat / 1000);
         setAmount(String(sats));
-        await prepareSend(currentInput, sats);
+        await prepareSend(currentInput, BigInt(sats));
       } else if (parseResult.type === 'bolt11Invoice') {
-        fetchBalance();
         setCurrentStep('amount');
       } else if (parseResult.type === 'bitcoinAddress' || parseResult.type === 'sparkAddress') {
-        fetchBalance();
         setCurrentStep('amount');
       } else if (parseResult.type === 'lnurlPay' || parseResult.type === 'lightningAddress') {
-        fetchBalance();
         setCurrentStep('workflow');
       } else if (parseResult.type === 'lnurlAuth') {
         setCurrentStep('workflow');
@@ -122,22 +129,22 @@ export function useSendPayment(): UseSendPaymentReturn {
     } finally {
       setIsLoading(false);
     }
-  }, [wallet, paymentInput?.rawInput, prepareSend, fetchBalance]);
+  }, [wallet, paymentInput?.rawInput, prepareSend]);
 
   const onAmountNext = useCallback(async (
-    amountNum: number,
+    amount: bigint,
     includeFees?: boolean,
     tokenIdentifier?: string,
     conversionOptions?: ConversionOptions,
   ) => {
-    if (!amountNum || amountNum <= 0) {
+    if (amount <= 0n) {
       setError('Please enter a valid amount');
       return;
     }
     setFeesIncluded(!!includeFees);
     await prepareSend(
       paymentInput?.rawInput || '',
-      amountNum,
+      amount,
       includeFees ? 'feesIncluded' : undefined,
       tokenIdentifier,
       conversionOptions,
@@ -252,7 +259,6 @@ export function useSendPayment(): UseSendPaymentReturn {
     setPrepareResponse(null);
     setError(null);
     setIsLoading(false);
-    setBalanceSats(undefined);
     setFeesIncluded(false);
     setPaymentInput(null);
     setPaymentResult(null);
@@ -268,6 +274,7 @@ export function useSendPayment(): UseSendPaymentReturn {
     prepareResponse,
     paymentResult,
     balanceSats,
+    tokenBalance,
     feesIncluded,
     processingPhase,
     clearError: useCallback(() => setError(null), []),

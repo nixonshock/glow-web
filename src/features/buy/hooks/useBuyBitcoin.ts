@@ -1,16 +1,13 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import type { Network } from '@breeztech/breez-sdk-spark';
 import { useWallet } from '../../../contexts/WalletContext';
-import { useStableBalance } from '../../../contexts/StableBalanceContext';
 import { usePlatform } from '../../../hooks/usePlatform';
 import { useInvoicePaid } from '../../../hooks/useInvoicePaid';
+import { useAmountInput } from '../../../hooks/useAmountInput';
 import { logger, LogCategory } from '../../../services/logger';
 import { formatError } from '../../../utils/formatError';
-import {
-  fiatToSats,
-  sanitizeTokenInput,
-  type TokenDisplayConfig,
-} from '../../../utils/tokenFormatting';
+import { type TokenDisplayConfig } from '../../../utils/tokenFormatting';
+import { toSats, toSdkAmountNumber, type Sats } from '../../../types/sats';
 import {
   getBuyProviderSettings,
   filterProvidersByNetwork,
@@ -21,7 +18,11 @@ export type BuyStep = 'select' | 'amount' | 'qr';
 
 const CASH_APP_QUICK_AMOUNTS_SATS = [10000, 50000, 100000];
 const CASH_APP_QUICK_AMOUNTS_TOKEN = [5, 10, 25];
-const MIN_CASH_APP_SATS = 1;
+const MIN_CASH_APP_SATS: Sats = 1n as Sats;
+// Cash App caps verified-user Bitcoin buys at roughly $100k/week (~$10k/day).
+// Using the weekly ceiling as a generous client-side guardrail — anything above
+// this is sure to be rejected by Cash App, so we fail fast with a clear error.
+const CASH_APP_MAX_USD = 100_000;
 
 export interface UseBuyBitcoinOptions {
   /** Whether the dialog is open — used to reset state when closed. */
@@ -44,7 +45,7 @@ export interface UseBuyBitcoinReturn {
   /** Display string bound to the input. Holds fiat in token mode, sats otherwise. */
   amountInput: string;
   cashAppUrl: string | null;
-  generatedAmountSats: number | null;
+  generatedAmountSats: Sats | null;
   isGenerating: boolean;
   error: string | null;
   validAmount: boolean;
@@ -52,7 +53,8 @@ export interface UseBuyBitcoinReturn {
   quickAmounts: number[];
   // Token mode
   isTokenMode: boolean;
-  hasTokenConfig: boolean;
+  /** True when stable balance is currently active — gates the CurrencySwitcher. */
+  isStableBalanceActive: boolean;
   tokenConfig: TokenDisplayConfig | null;
   // Actions
   selectProvider: (provider: BuyBitcoinProvider) => Promise<void>;
@@ -72,19 +74,55 @@ export function useBuyBitcoin({
   onInvoicePaid,
 }: UseBuyBitcoinOptions): UseBuyBitcoinReturn {
   const sdk = useWallet();
-  const stableBalance = useStableBalance();
   const platform = usePlatform();
   const isMobile = platform.isIOS || platform.isAndroid;
 
-  const hasTokenConfig = !!stableBalance.displayConfig;
-  const tokenConfig = stableBalance.displayConfig;
+  const input = useAmountInput();
+  const {
+    amountInput,
+    setAmount,
+    setAmountInput,
+    resetAmount,
+    isTokenMode,
+    setIsTokenMode,
+    toggleDenomination,
+    isStableBalanceActive,
+    config: tokenConfig,
+    amountSats,
+    btcFiatRate,
+  } = input;
+
+  // Detect "too large" inputs: parseAmountToSats returns null once the result
+  // exceeds the absolute Bitcoin max. Without this hint, the user just sees
+  // Continue stay disabled.
+  const amountTooLarge = useMemo(() => {
+    if (amountInput === '' || amountSats !== null) return false;
+    const numeric = Number(amountInput);
+    if (!Number.isFinite(numeric) || numeric <= 0) return false;
+    const projectedSats = isTokenMode && btcFiatRate > 0
+      ? (numeric / btcFiatRate) * 100_000_000
+      : numeric;
+    return projectedSats > Number.MAX_SAFE_INTEGER;
+  }, [amountInput, amountSats, isTokenMode, btcFiatRate]);
+
+  // Cash App's own purchase ceiling — converted to sats at the current rate so
+  // we can compare against `amountSats` regardless of which input mode the
+  // user is in. Skipped while the rate hasn't loaded.
+  const cashAppMaxSats = useMemo<Sats | null>(() => {
+    if (!btcFiatRate || btcFiatRate <= 0) return null;
+    return toSats(BigInt(Math.floor((CASH_APP_MAX_USD * 100_000_000) / btcFiatRate)));
+  }, [btcFiatRate]);
+
+  const exceedsCashAppLimit = useMemo(() => {
+    if (cashAppMaxSats === null) return false;
+    if (amountSats === null) return false;
+    return amountSats > cashAppMaxSats;
+  }, [amountSats, cashAppMaxSats]);
 
   const [step, setStep] = useState<BuyStep>('select');
   const [redirectingProvider, setRedirectingProvider] = useState<BuyBitcoinProvider | null>(null);
-  const [isTokenMode, setIsTokenMode] = useState(stableBalance.isActive && hasTokenConfig);
-  const [amountInput, setAmountInput] = useState('');
   const [cashAppUrl, setCashAppUrl] = useState<string | null>(null);
-  const [generatedAmountSats, setGeneratedAmountSats] = useState<number | null>(null);
+  const [generatedAmountSats, setGeneratedAmountSats] = useState<Sats | null>(null);
   const [isGenerating, setIsGenerating] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -95,19 +133,20 @@ export function useBuyBitcoin({
     [isOpen, network]
   );
 
-  // Reset local state whenever the dialog closes.
+  // Reset local state whenever the dialog closes. Note: useAmountInput
+  // already handles auto-reset when stable balance is deactivated mid-flow.
   useEffect(() => {
     if (!isOpen) {
       setStep('select');
       setRedirectingProvider(null);
-      setIsTokenMode(stableBalance.isActive && hasTokenConfig);
-      setAmountInput('');
+      setIsTokenMode(isStableBalanceActive);
+      resetAmount();
       setCashAppUrl(null);
       setGeneratedAmountSats(null);
       setIsGenerating(false);
       setError(null);
     }
-  }, [isOpen, stableBalance.isActive, hasTokenConfig]);
+  }, [isOpen, isStableBalanceActive, setIsTokenMode, resetAmount]);
 
   const selectProvider = useCallback(
     async (provider: BuyBitcoinProvider) => {
@@ -127,48 +166,39 @@ export function useBuyBitcoin({
     [onSelectRedirectProvider]
   );
 
-  const setAmount = useCallback(
+  const setAmountWithErrorClear = useCallback(
     (value: string) => {
-      if (isTokenMode && tokenConfig) {
-        const sanitized = sanitizeTokenInput(value, tokenConfig.fractionSize);
-        if (sanitized !== null) {
-          setAmountInput(sanitized);
-          setError((prev) => (prev ? null : prev));
-        }
-      } else {
-        setAmountInput(value.replace(/[^0-9]/g, ''));
-        setError((prev) => (prev ? null : prev));
-      }
+      setAmount(value);
+      setError((prev) => (prev ? null : prev));
     },
-    [isTokenMode, tokenConfig]
+    [setAmount],
   );
 
-  const setQuickAmount = useCallback((value: number) => {
-    setAmountInput(String(value));
-    setError(null);
-  }, []);
+  const setQuickAmount = useCallback(
+    (value: number) => {
+      setAmountInput(String(value));
+      setError(null);
+    },
+    [setAmountInput],
+  );
 
-  const toggleDenomination = useCallback(() => {
-    setIsTokenMode((prev) => !prev);
-    setAmountInput('');
+  const toggleDenominationWithErrorClear = useCallback(() => {
+    toggleDenomination();
     setError(null);
-  }, []);
-
-  // Convert the input string to sats based on the current mode.
-  const amountSats = useMemo(() => {
-    if (amountInput === '') return 0;
-    if (isTokenMode && tokenConfig && stableBalance.btcFiatRate > 0) {
-      const fiat = parseFloat(amountInput);
-      if (!fiat || fiat <= 0) return 0;
-      return fiatToSats(fiat, stableBalance.btcFiatRate);
-    }
-    const sats = parseInt(amountInput, 10);
-    return Number.isFinite(sats) ? sats : 0;
-  }, [amountInput, isTokenMode, tokenConfig, stableBalance.btcFiatRate]);
+  }, [toggleDenomination]);
 
   const generate = useCallback(async () => {
-    if (!amountSats || amountSats < MIN_CASH_APP_SATS) {
-      setError(`Amount must be at least ₿${MIN_CASH_APP_SATS.toLocaleString()}`);
+    if (amountSats === null || amountSats < MIN_CASH_APP_SATS) {
+      setError(`Amount must be at least ₿${MIN_CASH_APP_SATS.toString()}`);
+      return;
+    }
+    if (cashAppMaxSats !== null && amountSats > cashAppMaxSats) {
+      setError('Invalid amount');
+      return;
+    }
+    const amountSatsForSdk = toSdkAmountNumber(amountSats);
+    if (amountSatsForSdk === null) {
+      setError('Invalid amount');
       return;
     }
     setError(null);
@@ -179,7 +209,7 @@ export function useBuyBitcoin({
     const mobileTab = isMobile ? window.open('', '_blank') : null;
 
     try {
-      const response = await sdk.buyBitcoin({ type: 'cashApp', amountSats });
+      const response = await sdk.buyBitcoin({ type: 'cashApp', amountSats: amountSatsForSdk });
       setGeneratedAmountSats(amountSats);
       if (isMobile) {
         if (mobileTab) {
@@ -199,7 +229,7 @@ export function useBuyBitcoin({
     } finally {
       setIsGenerating(false);
     }
-  }, [amountSats, isMobile, sdk, onMobileRedirectComplete]);
+  }, [amountSats, cashAppMaxSats, isMobile, sdk, onMobileRedirectComplete]);
 
   // Cash App URLs are `https://cash.app/launch/lightning/<bolt11>`. Extract the
   // invoice only while we're showing the QR so the bus subscription pauses
@@ -213,16 +243,23 @@ export function useBuyBitcoin({
 
   const goBackToSelect = useCallback(() => {
     setStep('select');
-    setAmountInput('');
+    resetAmount();
     setError(null);
-  }, []);
+  }, [resetAmount]);
 
   const goBackToAmount = useCallback(() => {
     setStep('amount');
     setCashAppUrl(null);
   }, []);
 
-  const validAmount = amountInput !== '' && amountSats >= MIN_CASH_APP_SATS;
+  const validAmount = amountInput !== ''
+    && amountSats !== null
+    && amountSats >= MIN_CASH_APP_SATS
+    && !amountTooLarge
+    && !exceedsCashAppLimit;
+
+  const displayedError = error
+    ?? ((amountTooLarge || exceedsCashAppLimit) ? 'Invalid amount' : null);
 
   const quickAmounts = isTokenMode ? CASH_APP_QUICK_AMOUNTS_TOKEN : CASH_APP_QUICK_AMOUNTS_SATS;
 
@@ -234,17 +271,17 @@ export function useBuyBitcoin({
     cashAppUrl,
     generatedAmountSats,
     isGenerating,
-    error,
+    error: displayedError,
     validAmount,
     isMobile,
     quickAmounts,
     isTokenMode,
-    hasTokenConfig,
+    isStableBalanceActive,
     tokenConfig,
     selectProvider,
-    setAmount,
+    setAmount: setAmountWithErrorClear,
     setQuickAmount,
-    toggleDenomination,
+    toggleDenomination: toggleDenominationWithErrorClear,
     generate,
     goBackToSelect,
     goBackToAmount,
