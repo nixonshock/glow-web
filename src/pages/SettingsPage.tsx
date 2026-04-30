@@ -8,6 +8,8 @@ import SlideInPage from '../components/layout/SlideInPage';
 import { logger, LogCategory } from '@/services/logger';
 import { shareOrDownloadLogs, exportDatabaseState } from '@/services/logExport';
 import { useSecretTap } from '@/hooks/useSecretTap';
+import { useToast } from '@/contexts/ToastContext';
+import { isNativePlatform } from '@/services/nativePasskeyPrfProvider';
 
 const DEV_MODE_STORAGE_KEY = 'spark-dev-mode';
 
@@ -20,6 +22,7 @@ interface SettingsPageProps {
 
 const SettingsPage: React.FC<SettingsPageProps> = ({ onBack, config, onOpenFiatCurrencies, onOpenBuyProviders }) => {
   const wallet = useWallet();
+  const { showToast } = useToast();
   const {
     handleTap: devTap,
     activated: isDevMode,
@@ -355,6 +358,91 @@ const SettingsPage: React.FC<SettingsPageProps> = ({ onBack, config, onOpenFiatC
                     onChange={() => setSparkPrivateModeEnabled(!sparkPrivateModeEnabled)}
                     disabled={isLoadingUserSettings}
                   />
+                </div>
+              </div>
+
+              {/* Passkey state reset (dev mode). Two paths because
+                  testing the hardening flows benefits from cleaning
+                  different layers independently:
+                    - Flag-only: clears `passkeyRegistered` but leaves
+                      the plugin's iCloud-synced credential-IDs
+                      keychain entry intact. Use to reach the Get
+                      Started CTA while a real passkey still exists
+                      in iCloud Keychain — the path that exercises
+                      the platform's `excludeCredentialIds` refusal
+                      via PasskeyAlreadyExistsError.
+                    - Full wipe: clears flag + plugin keychain entry.
+                      Use after deleting the actual passkey from
+                      Settings -> Passwords to reach a true zero
+                      state for testing the new-user flow. */}
+              <div className="bg-spark-dark border border-spark-border rounded-2xl p-4">
+                <h3 className="font-display font-semibold text-spark-text-primary mb-3">Passkey state (dev)</h3>
+                <div className="space-y-2">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      // Intentionally only clear the flag — leave
+                      // `passkeyKnownCredentials` in place. On native
+                      // the credential-IDs registry lives in the
+                      // iCloud-synced plugin keychain so this matters
+                      // less, but on web that localStorage entry IS
+                      // the registry. Wiping it here would empty the
+                      // browser's excludeCredentialIds list and
+                      // silently allow a duplicate passkey on the
+                      // next Create attempt — which is exactly the
+                      // "platform-level already-exists check still
+                      // fires" guarantee this button claims to
+                      // preserve.
+                      localStorage.removeItem('passkeyRegistered');
+                      logger.warn(LogCategory.AUTH, 'Dev: cleared passkeyRegistered flag (kept credential IDs)');
+                      showToast('success', 'Passkey history cleared', 'Restart the app to see "Get Started" CTA.');
+                    }}
+                    className="w-full bg-spark-surface border border-spark-border rounded-xl px-4 py-3 text-spark-text-primary text-sm hover:border-spark-border-light transition-colors text-left"
+                  >
+                    <span className="font-medium block">Forget passkey history</span>
+                    <span className="text-spark-text-muted text-xs">
+                      {isNativePlatform()
+                        ? 'Clears local flag only. Keeps the iCloud-synced credential IDs so the platform-level "already exists" check still fires.'
+                        : 'Clears local flag only. Keeps tracked credential IDs in localStorage so the browser-level "already exists" check still fires.'}
+                    </span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={async () => {
+                      let keychainCleared = true;
+                      try {
+                        const { passkeyPrfProvider } = await import('@/services/passkeyPrfProvider');
+                        await passkeyPrfProvider.clearKnownCredentialIds();
+                      } catch (e) {
+                        keychainCleared = false;
+                        logger.warn(LogCategory.AUTH, 'Dev wipe: clearKnownCredentialIds threw', {
+                          error: e instanceof Error ? e.message : String(e),
+                        });
+                      }
+                      localStorage.removeItem('passkeyRegistered');
+                      localStorage.removeItem('passkeyKnownCredentials');
+                      logger.warn(LogCategory.AUTH, 'Dev: full passkey state wipe');
+                      if (keychainCleared) {
+                        showToast(
+                          'success',
+                          'Passkey state wiped',
+                          isNativePlatform()
+                            ? 'Local flag + iCloud-synced credential IDs cleared.'
+                            : 'Local flag + tracked credential IDs cleared.',
+                        );
+                      } else {
+                        showToast('error', 'Partial wipe', 'Local cleared but plugin keychain clear failed; check logs.');
+                      }
+                    }}
+                    className="w-full bg-spark-surface border border-spark-border rounded-xl px-4 py-3 text-spark-text-primary text-sm hover:border-spark-border-light transition-colors text-left"
+                  >
+                    <span className="font-medium block">Wipe all passkey state</span>
+                    <span className="text-spark-text-muted text-xs">
+                      {isNativePlatform()
+                        ? "Clears local flag AND the plugin's iCloud-synced credential-IDs entry. Pair with a Settings -> Passwords delete for a true zero state."
+                        : 'Clears local flag AND localStorage credential-IDs registry. Pair with a browser-level passkey delete (Chrome / Safari Passwords) for a true zero state.'}
+                    </span>
+                  </button>
                 </div>
               </div>
 

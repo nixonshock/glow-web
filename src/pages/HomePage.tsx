@@ -1,5 +1,8 @@
 import React, { useEffect, useState } from 'react';
 import { useSecretTap } from '@/hooks/useSecretTap';
+import { safeAreaTop, safeAreaBottom } from '@/utils/safeAreaInsets';
+import { useStatusBarColor } from '@/hooks/useStatusBarColor';
+import { STATUS_BAR_SURFACE } from '@/utils/statusBarManager';
 
 // Star positions around the logo (relative to center, in pixels) - larger radius for bigger logo
 const STARS = [
@@ -16,16 +19,25 @@ const STARS = [
 interface HomePageProps {
   onRestoreWallet: () => void;
   onCreateNewWallet: () => void;
+  onCreatePasskey: () => void;
   onUsePasskey: () => void;
   prfAvailable: boolean;
+  /** True when this device has previously used a passkey (prioritize sign-in). */
+  hasPasskeyBefore?: boolean;
 }
 
 const HomePage: React.FC<HomePageProps> = ({
   onRestoreWallet,
   onCreateNewWallet,
+  onCreatePasskey,
   onUsePasskey,
   prfAvailable,
+  hasPasskeyBefore = false,
 }) => {
+  // Landing page sits on a flat spark-surface background, so pin the
+  // system bars to the same solid tone while we're shown.
+  useStatusBarColor(STATUS_BAR_SURFACE);
+
   const [starsAnimating, setStarsAnimating] = useState(false);
   const [showMnemonicFlow, setShowMnemonicFlow] = useState(false);
   const { handleTap: handleLogoTap } = useSecretTap(5, 2000, false, () => setShowMnemonicFlow(v => !v));
@@ -38,9 +50,12 @@ const HomePage: React.FC<HomePageProps> = ({
 
   return (
     <div className="h-full w-full flex flex-col bg-spark-surface relative overflow-hidden">
-      {/* Background layer - extends behind all safe areas */}
+      {/* Background layer - extends behind all safe areas.
+          Uses spark-surface (matching the system status/navigation bars)
+          so the landing page blends seamlessly with the system chrome
+          instead of presenting a visibly different color. */}
       <div
-        className="absolute inset-0 bg-spark-dark pointer-events-none"
+        className="absolute inset-0 bg-spark-surface pointer-events-none"
         style={{
           top: 'calc(-1 * env(safe-area-inset-top, 0px))',
           bottom: 'calc(-1 * env(safe-area-inset-bottom, 0px))',
@@ -78,8 +93,8 @@ const HomePage: React.FC<HomePageProps> = ({
       <div
         className="flex-1 flex flex-col items-center justify-center px-6 relative z-10"
         style={{
-          paddingTop: 'env(safe-area-inset-top, 0px)',
-          paddingBottom: 'env(safe-area-inset-bottom, 0px)',
+          paddingTop: safeAreaTop,
+          paddingBottom: safeAreaBottom,
         }}
       >
 
@@ -128,23 +143,49 @@ const HomePage: React.FC<HomePageProps> = ({
         {/* CTA Buttons */}
         <div className="w-full max-w-xs space-y-4 min-h-[11rem]">
           {prfAvailable && !showMnemonicFlow ? (
-            <>
-              {/* Primary: Use Passkey (default when PRF available) */}
-              <button
-                onClick={onUsePasskey}
-                data-testid="create-wallet-passkey-button"
-                className="button w-full py-4 text-base tracking-wider"
-              >
-                Use Passkey
-              </button>
+            hasPasskeyBefore ? (
+              // Returning user (has registered a passkey before): the only
+              // CTA is sign-in. There's no "Create" path here; multiple
+              // wallets are achieved via multiple labels under a single
+              // passkey, not multiple passkeys per RP per device. The
+              // secret-tap on the logo flips into the mnemonic flow as
+              // a support escape hatch for the rare "I cleared
+              // localStorage" case.
+              <>
+                <button
+                  onClick={onUsePasskey}
+                  data-testid="use-passkey-button"
+                  className="button w-full py-4 text-base tracking-wider"
+                >
+                  Use Passkey
+                </button>
+              </>
+            ) : (
+              <>
+                <button
+                  onClick={onCreatePasskey}
+                  data-testid="create-passkey-button"
+                  className="button w-full py-4 text-base tracking-wider"
+                >
+                  Get Started
+                </button>
 
-              <button
-                onClick={() => setShowMnemonicFlow(true)}
-                className="text-spark-text-muted text-xs hover:text-spark-text-secondary transition-colors w-full text-center py-2"
-              >
-                Use Recovery Phrase Instead
-              </button>
-            </>
+                <button
+                  onClick={onUsePasskey}
+                  data-testid="use-passkey-button"
+                  className="button-secondary w-full py-4 rounded-xl font-display font-semibold text-sm tracking-wide"
+                >
+                  Use Existing Passkey
+                </button>
+
+                <button
+                  onClick={() => setShowMnemonicFlow(true)}
+                  className="text-spark-text-muted text-xs hover:text-spark-text-secondary transition-colors w-full text-center py-2"
+                >
+                  Use Recovery Phrase Instead
+                </button>
+              </>
+            )
           ) : (
             <>
               {/* Mnemonic flow */}
