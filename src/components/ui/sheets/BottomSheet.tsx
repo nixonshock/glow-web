@@ -1,5 +1,5 @@
 import React, { ReactNode, forwardRef, useState, useRef, useCallback, useEffect } from 'react';
-import { Transition } from '@headlessui/react';
+import { Transition, TransitionChild } from '@headlessui/react';
 import { Capacitor } from '@capacitor/core';
 import { Keyboard } from '@capacitor/keyboard';
 import type { PluginListenerHandle } from '@capacitor/core';
@@ -123,7 +123,7 @@ export const BottomSheetContainer: React.FC<BottomSheetContainerProps> = ({
   const startHeight = useRef(0);
   const source = useRef<'handle' | 'body'>('body');
   const wrapperRef = useRef<HTMLDivElement>(null);
-  const contentHeight = useRef(0);
+  const [contentHeight, setContentHeight] = useState(0);
 
   // Keep viewportHeight in sync with the visible viewport.
   // visualViewport.resize is the primary signal. On native Capacitor
@@ -182,12 +182,11 @@ export const BottomSheetContainer: React.FC<BottomSheetContainerProps> = ({
   }, [viewportHeight, maxHeightVh]);
 
   const getSnapPoints = useCallback((): number[] => {
-    const content = contentHeight.current;
     const full = maxPx();
     // If content fills most of the screen, only one snap point
-    if (content >= full * 0.9) return [full];
-    return [content, full];
-  }, [maxPx]);
+    if (contentHeight >= full * 0.9) return [full];
+    return [contentHeight, full];
+  }, [maxPx, contentHeight]);
 
   const getSnapHeight = useCallback((index: number): number => {
     const points = getSnapPoints();
@@ -207,7 +206,7 @@ export const BottomSheetContainer: React.FC<BottomSheetContainerProps> = ({
     // Use rAF to measure after layout
     const id = requestAnimationFrame(() => {
       if (wrapperRef.current) {
-        contentHeight.current = wrapperRef.current.getBoundingClientRect().height;
+        setContentHeight(wrapperRef.current.getBoundingClientRect().height);
       }
     });
     return () => cancelAnimationFrame(id);
@@ -288,16 +287,12 @@ export const BottomSheetContainer: React.FC<BottomSheetContainerProps> = ({
     setBodyDragY(0);
   }, []);
 
-  // Reset on close
-  useEffect(() => {
-    if (!isOpen) {
-      setSnapIndex(0);
-      setDragHeight(null);
-      setBodyDragY(0);
-      setAnimating(false);
-      dragging.current = false;
-    }
-  }, [isOpen]);
+  // No reset-on-close needed: consumers either re-mount this sheet on
+  // every open (via parent-managed `key={openSession}` or conditional
+  // render), so on each open the internal state — snapIndex, dragHeight,
+  // bodyDragY, animating, dragging.current — starts at its useState/useRef
+  // default. State left over from a prior session is dropped with the
+  // unmount.
 
   // Wire the Android hardware back button to close the sheet while
   // it's open. Uses the shared LIFO back-button stack in
@@ -369,13 +364,17 @@ export const BottomSheetContainer: React.FC<BottomSheetContainerProps> = ({
     // only pay browser layout/paint (no React mount).
     <Transition
       show={isOpen}
+      // `appear` animates on the very first mount when show is already
+      // true. Needed so consumers that remount this component on each
+      // open (via key) still get the enter animation.
+      appear
       unmount={false}
       as="div"
       className="absolute inset-x-0 top-0 z-50 overflow-hidden flex flex-col justify-end pointer-events-none"
       style={{ height: `${viewportHeight}px` }}
     >
       {showBackdrop && (
-        <Transition.Child
+        <TransitionChild
           as="div"
           // `unmount={false}` mirrors the outer Transition so the
           // backdrop's `hidden` toggle stays in lockstep with the
@@ -387,7 +386,7 @@ export const BottomSheetContainer: React.FC<BottomSheetContainerProps> = ({
           // on enter (fade arrives softly), emphasized accelerate on
           // exit (fade leaves quickly) so the scrim stays in sync with
           // the panel slide below.
-          enter="transition-opacity ease-m3-emphasized-decelerate duration-[250ms]"
+          enter="transition-opacity ease-m3-emphasized-decelerate duration-250"
           enterFrom="opacity-0"
           enterTo="opacity-100"
           leave="transition-opacity ease-m3-emphasized-accelerate duration-200"
@@ -397,7 +396,7 @@ export const BottomSheetContainer: React.FC<BottomSheetContainerProps> = ({
           onClick={onClose}
         />
       )}
-      <Transition.Child
+      <TransitionChild
         as="div"
         unmount={false}
         // Material 3 bottom-sheet panel motion. `motionDurationMedium1`
@@ -405,7 +404,7 @@ export const BottomSheetContainer: React.FC<BottomSheetContainerProps> = ({
         // (200ms) exit with emphasized accelerate. Exit keeps the
         // pre-existing `translate-y-1/2` shortcut so the drop feels
         // quick even though the duration is 50ms shorter than enter.
-        enter="transform transition ease-m3-emphasized-decelerate duration-[250ms]"
+        enter="transform transition ease-m3-emphasized-decelerate duration-250"
         enterFrom="translate-y-full opacity-0"
         enterTo="translate-y-0 opacity-100"
         leave="transform transition ease-m3-emphasized-accelerate duration-200"
@@ -449,7 +448,7 @@ export const BottomSheetContainer: React.FC<BottomSheetContainerProps> = ({
           }
           return child;
         })}
-      </Transition.Child>
+      </TransitionChild>
     </Transition>
   );
 };
@@ -485,7 +484,7 @@ export const BottomSheetCard = forwardRef<HTMLDivElement, BottomSheetCardProps>(
         >
           {/* Handle hit area: large touch target, small visual indicator */}
           <div
-            className="bottom-sheet-handle-zone flex-shrink-0"
+            className="bottom-sheet-handle-zone shrink-0"
             onPointerDown={_onHandlePointerDown}
             style={{ touchAction: 'none' }}
           >

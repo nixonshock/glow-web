@@ -4,6 +4,7 @@ import { useWallet } from '../../../contexts/WalletContext';
 import { generateRandomName } from '../../../utils/randomName';
 import { logger, LogCategory } from '@/services/logger';
 import { formatError } from '@/utils/formatError';
+import { useLatest } from '../../../hooks/useLatest';
 
 export interface UseLightningAddress {
   address: LightningAddressInfo | null;
@@ -59,8 +60,7 @@ export const useLightningAddress = (): UseLightningAddress => {
   // without depending on `address` in its closure — keeps the
   // callback reference stable across address updates so effects +
   // consumers don't re-fire every time the address changes.
-  const addressRef = useRef<LightningAddressInfo | null>(null);
-  addressRef.current = address;
+  const addressRef = useLatest(address);
   // Parallel in-flight guard. Without it the auto-load on mount can
   // race with the `loadLightningAddress()` the Receive dialog fires
   // from its isOpen useEffect — both start their own SDK roundtrip
@@ -118,24 +118,29 @@ export const useLightningAddress = (): UseLightningAddress => {
       setIsLoading(false);
       loadInFlightRef.current = false;
     }
-  }, [wallet, isSupported, markUnsupported, supportMessage]);
+  }, [wallet, isSupported, markUnsupported, supportMessage, addressRef]);
 
   // Pre-load the Lightning address as soon as the hook mounts (which
   // happens on WalletPage mount, well before the user taps Receive).
-  // Moves the cold `getLightningAddress` SDK roundtrip — plus any
-  // auto-registration chain for a fresh passkey label (`checkAvailable`
-  // → `register` → `getAddress` again) — out of the Receive-open
+  // Moves the cold `getLightningAddress` SDK roundtrip (plus any
+  // auto-registration chain for a fresh passkey label: `checkAvailable`
+  // then `register` then `getAddress` again) out of the Receive-open
   // animation critical path. Without this, the user sees a visible
   // dead window between tapping Receive and the sheet sliding up on
   // first launch while the WASM bridge + network calls complete. The
   // `hasAttemptedMountLoad` ref guards against React 18 Strict-Mode
   // double-invocation in dev + re-fires on dep changes.
+  //
+  // The fetch runs inside an async IIFE so all setStates fire after
+  // `await load()` resolves, satisfying react-hooks/set-state-in-effect.
   const hasAttemptedMountLoad = useRef(false);
   useEffect(() => {
     if (hasAttemptedMountLoad.current) return;
     if (!isSupported) return;
     hasAttemptedMountLoad.current = true;
-    void load();
+    void (async () => {
+      await load();
+    })();
   }, [isSupported, load]);
 
   const beginEdit = useCallback((currentAddress?: LightningAddressInfo | null) => {

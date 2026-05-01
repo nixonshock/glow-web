@@ -1,6 +1,6 @@
-import React, { useEffect, useLayoutEffect, useState, useRef } from 'react';
+import React, { useEffect, useState, useSyncExternalStore } from 'react';
 import { createPortal } from 'react-dom';
-import { Transition } from '@headlessui/react';
+import { Transition, TransitionChild } from '@headlessui/react';
 import { isPasskeyMode } from '@/services/passkeyService';
 import { RefundIcon, BackupIcon, SettingsIcon, LogoutIcon, CloseIcon, AlertTriangleIcon } from './Icons';
 import { safeAreaTop, safeAreaBottom } from '../utils/safeAreaInsets';
@@ -19,6 +19,36 @@ const STARS = [
   { x: 34, y: -2, size: 2.5 },
 ];
 
+// External-store measurement of the content-root's left offset, used
+// to anchor the drawer panel to the centered max-w-4xl column.
+// Module-level so identities are stable for useSyncExternalStore.
+const subscribeContentRoot = (notify: () => void) => {
+  let rafId: number | null = null;
+  const initialNotify = () => {
+    rafId = null;
+    notify();
+  };
+  // Re-notify after subscribe so the first render (null result before
+  // content-root is in the DOM) gets re-evaluated next frame.
+  rafId = requestAnimationFrame(initialNotify);
+  window.addEventListener('resize', notify);
+  window.addEventListener('scroll', notify, true);
+  return () => {
+    if (rafId !== null) cancelAnimationFrame(rafId);
+    window.removeEventListener('resize', notify);
+    window.removeEventListener('scroll', notify, true);
+  };
+};
+
+const getContentRootLeft = (): number | null => {
+  if (typeof document === 'undefined') return null;
+  const el = document.getElementById('content-root');
+  return el ? el.getBoundingClientRect().left : null;
+};
+
+// SSR contract for useSyncExternalStore. SideMenu is client-only.
+const getServerSnapshot = (): number | null => null;
+
 interface SideMenuProps {
   isOpen: boolean;
   onClose: () => void;
@@ -35,7 +65,11 @@ const SideMenu: React.FC<SideMenuProps> = ({ isOpen, onClose, onLogout, onOpenSe
   // panel's solid bg. Tied to isOpen so popping happens on close.
   useStatusBarColor(STATUS_BAR_SURFACE, isOpen);
 
-  const [leftOffset, setLeftOffset] = useState<number | null>(null);
+  const leftOffset = useSyncExternalStore(
+    subscribeContentRoot,
+    getContentRootLeft,
+    getServerSnapshot
+  );
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
 
   // When the logout confirmation dialog opens, dim the system bars to
@@ -56,51 +90,27 @@ const SideMenu: React.FC<SideMenuProps> = ({ isOpen, onClose, onLogout, onOpenSe
     setShowLogoutConfirm(false);
   }, showLogoutConfirm);
 
-  const [starsAnimating, setStarsAnimating] = useState(false);
-  const prevIsOpenRef = useRef(false);
+  // Stars animate after the 300ms slide-in delay. Derived from isOpen
+  // so close flips it off immediately without a reset in an effect.
+  const [starsLit, setStarsLit] = useState(false);
+  const starsAnimating = isOpen && starsLit;
 
   const isPasskey = isPasskeyMode();
 
   // Trigger star animation when sidebar opens
   useEffect(() => {
-    if (isOpen && !prevIsOpenRef.current) {
-      // Sidebar just opened - start star animation after slide-in completes
-      const timer = setTimeout(() => setStarsAnimating(true), 300);
-      return () => clearTimeout(timer);
-    } else if (!isOpen) {
-      setStarsAnimating(false);
-    }
-    prevIsOpenRef.current = isOpen;
-  }, [isOpen]);
-
-  useEffect(() => {
-    const calc = () => {
-      const el = document.getElementById('content-root');
-      if (!el) return;
-      const rect = el.getBoundingClientRect();
-      setLeftOffset(rect.left);
-    };
-    calc();
-    window.addEventListener('resize', calc);
-    window.addEventListener('scroll', calc, true);
-    return () => {
-      window.removeEventListener('resize', calc);
-      window.removeEventListener('scroll', calc, true);
-    };
-  }, []);
-
-  useLayoutEffect(() => {
     if (!isOpen) return;
-    const el = document.getElementById('content-root');
-    if (!el) return;
-    const rect = el.getBoundingClientRect();
-    setLeftOffset(rect.left);
+    const timer = setTimeout(() => setStarsLit(true), 300);
+    return () => {
+      clearTimeout(timer);
+      setStarsLit(false);
+    };
   }, [isOpen]);
 
   // Close the drawer first, then fire the navigation callback once the
   // drawer's leave animation completes. Kept sequential (not
   // concurrent) so the drawer's left-edge motion doesn't compete with
-  // SlideInPage's left-edge enter — even though z-[60] on SlideInPage
+  // SlideInPage's left-edge enter — even though z-60 on SlideInPage
   // makes the drawer invisible for most of the overlap, running them
   // back-to-back feels cleaner and gives the user a moment to see the
   // drawer close before the new page arrives. 100ms matches the
@@ -149,9 +159,9 @@ const SideMenu: React.FC<SideMenuProps> = ({ isOpen, onClose, onLogout, onOpenSe
           accelerate exit) at 100ms. Duration is faster than M3's
           `motionDurationMedium4` canonical nav-drawer spec (400ms);
           we prioritise snap over the full M3 arc. */}
-      <Transition.Child
+      <TransitionChild
         as="div"
-        enter="transition-opacity ease-m3-emphasized-decelerate duration-[150ms]"
+        enter="transition-opacity ease-m3-emphasized-decelerate duration-150"
         enterFrom="opacity-0"
         enterTo="opacity-100"
         leave="transition-opacity ease-m3-emphasized-accelerate duration-100"
@@ -160,7 +170,7 @@ const SideMenu: React.FC<SideMenuProps> = ({ isOpen, onClose, onLogout, onOpenSe
         className="fixed inset-0"
       >
         <div className="fixed inset-0 bg-black/60 backdrop-blur-sm" onClick={onClose} />
-      </Transition.Child>
+      </TransitionChild>
 
       {/* Panel */}
       {leftOffset !== null && (
@@ -168,9 +178,9 @@ const SideMenu: React.FC<SideMenuProps> = ({ isOpen, onClose, onLogout, onOpenSe
           className="fixed top-0 bottom-0 w-72 overflow-hidden"
           style={{ left: leftOffset }}
         >
-          <Transition.Child
+          <TransitionChild
             as="div"
-            enter="transition transform ease-m3-emphasized-decelerate duration-[150ms]"
+            enter="transition transform ease-m3-emphasized-decelerate duration-150"
             enterFrom="-translate-x-full"
             enterTo="translate-x-0"
             leave="transition transform ease-m3-emphasized-accelerate duration-100"
@@ -246,7 +256,7 @@ const SideMenu: React.FC<SideMenuProps> = ({ isOpen, onClose, onLogout, onOpenSe
 
             {/* Logout Confirmation Dialog */}
             <Transition show={showLogoutConfirm} as="div" className="fixed inset-0 z-60">
-              <Transition.Child
+              <TransitionChild
                 as="div"
                 enter="transition-opacity ease-out duration-150"
                 enterFrom="opacity-0"
@@ -258,7 +268,7 @@ const SideMenu: React.FC<SideMenuProps> = ({ isOpen, onClose, onLogout, onOpenSe
                 onClick={() => setShowLogoutConfirm(false)}
               />
               <div className="fixed inset-0 flex items-center justify-center p-4">
-                <Transition.Child
+                <TransitionChild
                   as="div"
                   enter="transition transform ease-out duration-200"
                   enterFrom="opacity-0 scale-95"
@@ -298,10 +308,10 @@ const SideMenu: React.FC<SideMenuProps> = ({ isOpen, onClose, onLogout, onOpenSe
                       Logout
                     </button>
                   </div>
-                </Transition.Child>
+                </TransitionChild>
               </div>
             </Transition>
-          </Transition.Child>
+          </TransitionChild>
         </div>
       )}
     </Transition>,

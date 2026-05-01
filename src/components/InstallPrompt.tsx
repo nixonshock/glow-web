@@ -77,6 +77,7 @@ const InstallPrompt: React.FC<InstallPromptProps> = ({ onClose }) => {
   return (
     <Transition
       show={isVisible}
+      as="div"
       enter="transform transition ease-out duration-300"
       enterFrom="translate-y-full opacity-0"
       enterTo="translate-y-0 opacity-100"
@@ -88,7 +89,7 @@ const InstallPrompt: React.FC<InstallPromptProps> = ({ onClose }) => {
       <div className="bg-spark-surface border border-spark-border rounded-2xl p-4 shadow-glass-lg">
         <div className="flex items-start gap-3">
           {/* Download icon */}
-          <div className="flex-shrink-0 w-10 h-10 bg-spark-primary/20 rounded-xl flex items-center justify-center">
+          <div className="shrink-0 w-10 h-10 bg-spark-primary/20 rounded-xl flex items-center justify-center">
             <DownloadIcon className="text-spark-primary" />
           </div>
 
@@ -121,7 +122,7 @@ const InstallPrompt: React.FC<InstallPromptProps> = ({ onClose }) => {
           {/* Close button */}
           <button
             onClick={handleDismiss}
-            className="flex-shrink-0 p-1 text-spark-text-muted hover:text-spark-text-secondary transition-colors"
+            className="shrink-0 p-1 text-spark-text-muted hover:text-spark-text-secondary transition-colors"
           >
             <CloseIcon size="sm" />
           </button>

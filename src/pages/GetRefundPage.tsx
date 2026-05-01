@@ -46,24 +46,42 @@ const GetRefundPage: React.FC<GetRefundPageProps> = ({ onBack, animationDirectio
   // State for expandable transaction ID fields in examples
   const [expandedTxIds, setExpandedTxIds] = useState<Record<string, boolean>>({});
 
+  // Check if deposit has been refunded
+  const hasRefundTx = (deposit: DepositInfo) => {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- SDK DepositInfo doesn't expose refund fields
+    const d = deposit as any;
+    return Boolean(d.refund_tx_id || d.refundTxId || d.refund_txid || d.refundTxid);
+  };
+
+  const getRefundTxId = (deposit: DepositInfo) => {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- SDK DepositInfo doesn't expose refund fields
+    const d = deposit as any;
+    return d.refund_tx_id || d.refundTxId || d.refund_txid || d.refundTxid || null;
+  };
+
+  // Pure fetch: returns the sorted list, leaves setState to callers so
+  // the mount effect can commit post-await.
+  const fetchRejectedDeposits = useCallback(async (): Promise<DepositInfo[]> => {
+    const list = (await wallet.listUnclaimedDeposits({})).deposits;
+    // Only show deposits that have been rejected
+    const rejectedDeposits = list.filter(d => isDepositRejected(d.txid, d.vout));
+
+    // Sort: non-broadcasted (no refundTxId) first, then broadcasted
+    return rejectedDeposits.sort((a, b) => {
+      const aHasRefund = hasRefundTx(a);
+      const bHasRefund = hasRefundTx(b);
+
+      // Non-broadcasted (false) should come before broadcasted (true)
+      if (aHasRefund === bHasRefund) return 0;
+      return aHasRefund ? 1 : -1;
+    });
+  }, [wallet]);
+
   const load = useCallback(async () => {
     setIsLoading(true);
     setError(null);
     try {
-      const list = (await wallet.listUnclaimedDeposits({})).deposits;
-      // Only show deposits that have been rejected
-      const rejectedDeposits = list.filter(d => isDepositRejected(d.txid, d.vout));
-
-      // Sort: non-broadcasted (no refundTxId) first, then broadcasted
-      const sortedDeposits = rejectedDeposits.sort((a, b) => {
-        const aHasRefund = hasRefundTx(a);
-        const bHasRefund = hasRefundTx(b);
-
-        // Non-broadcasted (false) should come before broadcasted (true)
-        if (aHasRefund === bHasRefund) return 0;
-        return aHasRefund ? 1 : -1;
-      });
-
+      const sortedDeposits = await fetchRejectedDeposits();
       setDeposits(sortedDeposits);
     } catch (e) {
       logger.error(LogCategory.PAYMENT, 'Failed to load rejected deposits', {
@@ -73,11 +91,28 @@ const GetRefundPage: React.FC<GetRefundPageProps> = ({ onBack, animationDirectio
     } finally {
       setIsLoading(false);
     }
-  }, [wallet]);
+  }, [fetchRejectedDeposits]);
 
   useEffect(() => {
-    void load();
-  }, [load]);
+    let cancelled = false;
+    void (async () => {
+      try {
+        const sortedDeposits = await fetchRejectedDeposits();
+        if (cancelled) return;
+        setDeposits(sortedDeposits);
+        setError(null);
+      } catch (e) {
+        if (cancelled) return;
+        logger.error(LogCategory.PAYMENT, 'Failed to load rejected deposits', {
+          error: e instanceof Error ? e.message : String(e),
+        });
+        setError('Failed to load rejected deposits');
+      } finally {
+        if (!cancelled) setIsLoading(false);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [fetchRejectedDeposits]);
 
   useEffect(() => {
     let listenerId: string | null = null;
@@ -163,19 +198,6 @@ const GetRefundPage: React.FC<GetRefundPageProps> = ({ onBack, animationDirectio
   const getRefundAmount = () => {
     if (!selectedDeposit) return 0;
     return selectedDeposit.amountSats - getSelectedFee();
-  };
-
-  // Check if deposit has been refunded
-  const hasRefundTx = (deposit: DepositInfo) => {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- SDK DepositInfo doesn't expose refund fields
-    const d = deposit as any;
-    return Boolean(d.refund_tx_id || d.refundTxId || d.refund_txid || d.refundTxid);
-  };
-
-  const getRefundTxId = (deposit: DepositInfo) => {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- SDK DepositInfo doesn't expose refund fields
-    const d = deposit as any;
-    return d.refund_tx_id || d.refundTxId || d.refund_txid || d.refundTxid || null;
   };
 
   // Get mempool.space URL for a transaction
@@ -406,7 +428,7 @@ const GetRefundPage: React.FC<GetRefundPageProps> = ({ onBack, animationDirectio
                 {refundError && (
                   <div className="bg-spark-warning/10 border border-spark-warning/30 rounded-2xl p-4">
                     <div className="flex items-center gap-3 mb-2">
-                      <div className="w-10 h-10 rounded-xl bg-spark-warning/20 flex items-center justify-center flex-shrink-0">
+                      <div className="w-10 h-10 rounded-xl bg-spark-warning/20 flex items-center justify-center shrink-0">
                         <WarningIcon size="md" className="text-spark-warning" />
                       </div>
                       <h3 className="font-display font-bold text-spark-warning">Refund Failed</h3>

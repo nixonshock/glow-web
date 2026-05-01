@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import { SimpleAlert } from '../../../components/AlertCard';
 import { PrimaryButton } from '../../../components/ui';
 import ContactAutocomplete from '../components/ContactAutocomplete';
@@ -20,31 +20,19 @@ export interface InputStepProps {
   onOpenContacts?: () => void;
 }
 
+// Parent (SendPaymentDialog) keys this on `selectedContactAddress` so
+// a fresh contact pick remounts and lazy-init re-reads the props.
 const InputStep: React.FC<InputStepProps> = ({ paymentInput, selectedContactAddress, isLoading, error, onClearError, onContinue, onScanQr, onOpenContacts }) => {
-  const [localPaymentInput, setLocalPaymentInput] = useState<string>(paymentInput || '');
-  const [isInputFocused, setIsInputFocused] = useState(false);
-  const [selectedContact, setSelectedContact] = useState<Contact | null>(null);
   const { contacts } = useContactsContext();
-
-  useEffect(() => {
-    setLocalPaymentInput(paymentInput || '');
-    // If the paymentInput matches a contact, show it as selected
-    if (paymentInput) {
-      const match = contacts.find(c => c.paymentIdentifier === paymentInput);
-      if (match) setSelectedContact(match);
-    }
-  }, [paymentInput, contacts]);
-
-  // Handle contact selected from ContactsSubView
-  useEffect(() => {
-    if (selectedContactAddress) {
-      const match = contacts.find(c => c.paymentIdentifier === selectedContactAddress);
-      if (match) {
-        setSelectedContact(match);
-        setLocalPaymentInput(selectedContactAddress);
-      }
-    }
-  }, [selectedContactAddress, contacts]);
+  const [localPaymentInput, setLocalPaymentInput] = useState<string>(() =>
+    selectedContactAddress || paymentInput || ''
+  );
+  const [isInputFocused, setIsInputFocused] = useState(false);
+  const [selectedContact, setSelectedContact] = useState<Contact | null>(() => {
+    const initialAddress = selectedContactAddress || paymentInput;
+    if (!initialAddress) return null;
+    return contacts.find(c => c.paymentIdentifier === initialAddress) || null;
+  });
 
   const autocompleteContacts = useMemo(() => searchContacts(contacts, localPaymentInput), [contacts, localPaymentInput]);
 
@@ -87,7 +75,7 @@ const InputStep: React.FC<InputStepProps> = ({ paymentInput, selectedContactAddr
         {selectedContact ? (
           // Selected contact chip
           <div className="w-full h-full px-4 bg-spark-dark border border-spark-border rounded-xl flex items-center gap-3">
-            <div className="w-8 h-8 rounded-full bg-spark-primary/15 flex items-center justify-center flex-shrink-0">
+            <div className="w-8 h-8 rounded-full bg-spark-primary/15 flex items-center justify-center shrink-0">
               <span className="text-spark-primary font-display font-bold text-xs">
                 {selectedContact.name.charAt(0).toUpperCase()}
               </span>
@@ -99,7 +87,7 @@ const InputStep: React.FC<InputStepProps> = ({ paymentInput, selectedContactAddr
             <button
               onClick={handleClearContact}
               disabled={isLoading}
-              className="p-1 text-spark-text-muted hover:text-spark-text-primary rounded-lg hover:bg-white/5 transition-colors flex-shrink-0"
+              className="p-1 text-spark-text-muted hover:text-spark-text-primary rounded-lg hover:bg-white/5 transition-colors shrink-0"
               aria-label="Clear contact"
             >
               <CloseIcon size="sm" />
@@ -140,7 +128,7 @@ const InputStep: React.FC<InputStepProps> = ({ paymentInput, selectedContactAddr
               autoCorrect="off"
               spellCheck={false}
               placeholder="lnbc... / bc1... / sp1... / user@domain.com / contact"
-              className="w-full h-full p-4 bg-spark-dark text-spark-text-primary placeholder-spark-text-muted focus:ring-0 resize-none font-mono text-sm border outline-none transition-all rounded-xl border-spark-border focus:border-spark-primary"
+              className="w-full h-full p-4 bg-spark-dark text-spark-text-primary placeholder-spark-text-muted focus:ring-0 resize-none font-mono text-sm border outline-hidden transition-all rounded-xl border-spark-border focus:border-spark-primary"
               disabled={isLoading}
               data-testid="payment-input"
             />

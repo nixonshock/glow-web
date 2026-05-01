@@ -41,9 +41,12 @@ const CollapsingWalletHeader: React.FC<CollapsingWalletHeaderProps> = ({
   const { fiatRates, fiatCurrencies } = useFiatData();
   const stableBalance = useStableBalance();
   const [activeFiatIndex, setActiveFiatIndex] = useState(0);
-  const [toggleFlowOpen, setToggleFlowOpen] = useState(false);
-  const [toggleDirection, setToggleDirection] = useState<'toToken' | 'toBitcoin'>('toToken');
-  const [isRestorePrompt, setIsRestorePrompt] = useState(false);
+  // User-driven open. session is bumped on every tap so the dialog
+  // remounts with fresh state via key-based remount (no reset effect).
+  const [userToggle, setUserToggle] = useState<{
+    direction: 'toToken' | 'toBitcoin';
+    session: number;
+  } | null>(null);
 
   const restorePrompt = useRestoreStableBalancePrompt({
     isSyncing: !!isSyncing,
@@ -51,20 +54,26 @@ const CollapsingWalletHeader: React.FC<CollapsingWalletHeaderProps> = ({
     isStableBalanceActive: stableBalance.isActive,
   });
 
-  // Auto-open toggle flow when restore detects USDB balance
-  useEffect(() => {
-    if (restorePrompt.shouldPrompt) {
-      setToggleDirection('toToken');
-      setIsRestorePrompt(true);
-      setToggleFlowOpen(true);
-    }
-  }, [restorePrompt.shouldPrompt]);
+  // userToggle wins over restorePrompt (user already saw the pill).
+  const isRestorePromptOpen = !userToggle && restorePrompt.shouldPrompt;
+  const isOpen = userToggle !== null || isRestorePromptOpen;
+  const direction: 'toToken' | 'toBitcoin' = userToggle?.direction ?? 'toToken';
+  const dialogKey = userToggle ? `user-${userToggle.session}` : 'restore';
 
   const handleSuffixTap = useCallback(() => {
     if (stableBalance.isToggling) return;
-    setToggleDirection(stableBalance.isActive ? 'toBitcoin' : 'toToken');
-    setToggleFlowOpen(true);
+    setUserToggle((prev) => ({
+      direction: stableBalance.isActive ? 'toBitcoin' : 'toToken',
+      session: (prev?.session ?? 0) + 1,
+    }));
   }, [stableBalance]);
+
+  // Acknowledge the restore prompt on dismiss so it doesn't re-open
+  // immediately within the same shouldPrompt window.
+  const closeToggleFlow = useCallback(() => {
+    if (restorePrompt.shouldPrompt) restorePrompt.markPrompted();
+    setUserToggle(null);
+  }, [restorePrompt]);
 
   // Build lookup maps for O(1) access (js-index-maps optimization)
   const ratesMap = useMemo(() => {
@@ -122,10 +131,10 @@ const CollapsingWalletHeader: React.FC<CollapsingWalletHeaderProps> = ({
   // Compute balances
   const btcBalanceSat = walletInfo?.balanceSats || 0;
 
-  const tokenBalanceInfo = useMemo(() => {
-    if (!stableBalance.isActive || !walletInfo?.tokenBalances || !stableBalance.tokenIdentifier) return null;
-    return getTokenBalance(walletInfo.tokenBalances, stableBalance.tokenIdentifier);
-  }, [stableBalance.isActive, walletInfo?.tokenBalances, stableBalance.tokenIdentifier]);
+  const tokenBalanceInfo =
+    stableBalance.isActive && walletInfo?.tokenBalances && stableBalance.tokenIdentifier
+      ? getTokenBalance(walletInfo.tokenBalances, stableBalance.tokenIdentifier)
+      : null;
 
   const tokenBalanceRaw = tokenBalanceInfo ? Number(tokenBalanceInfo.balance) : 0;
 
@@ -376,18 +385,15 @@ const CollapsingWalletHeader: React.FC<CollapsingWalletHeaderProps> = ({
     </div>
 
     <StableBalanceToggleFlow
-      isOpen={toggleFlowOpen}
-      direction={toggleDirection}
-      restorePrompt={isRestorePrompt}
+      key={dialogKey}
+      isOpen={isOpen}
+      direction={direction}
+      restorePrompt={isRestorePromptOpen}
       onComplete={() => {
         refreshWalletData?.();
-        setToggleFlowOpen(false);
-        if (isRestorePrompt) { restorePrompt.markPrompted(); setIsRestorePrompt(false); }
+        closeToggleFlow();
       }}
-      onCancel={() => {
-        setToggleFlowOpen(false);
-        if (isRestorePrompt) { restorePrompt.markPrompted(); setIsRestorePrompt(false); }
-      }}
+      onCancel={closeToggleFlow}
     />
   </>
   );

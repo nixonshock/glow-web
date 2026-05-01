@@ -22,6 +22,7 @@ import type { DomainAssociation } from '@/services/passkeyPrfProvider';
 import { logger, LogCategory } from '@/services/logger';
 import { shareOrDownloadLogs } from '@/services/logExport';
 import StepperBar from '@/components/OnboardingStepper';
+import { useLatest } from '../hooks/useLatest';
 
 // ============================================
 // Types
@@ -162,7 +163,9 @@ const PasskeyPage: React.FC<PasskeyPageProps> = ({
   >(null);
   const [manualLabel, setManualLabel] = useState('');
   const [showManualInput, setShowManualInput] = useState(false);
-  const [detectingText, setDetectingText] = useState('Detecting passkey...');
+  // True once the WebAuthn assertion completes; drives the spinner
+  // label switch from "Detecting passkey..." to "Discovering labels...".
+  const [isDiscoveringLabels, setIsDiscoveringLabels] = useState(false);
   /**
    * Details of a `NotAssociated` verification result, surfaced verbatim
    * on the AASA error screen so users/maintainers see what went wrong
@@ -174,10 +177,8 @@ const PasskeyPage: React.FC<PasskeyPageProps> = ({
   >(null);
 
   // Stable refs for callbacks (avoid stale closures in effects)
-  const onWalletRestoredRef = useRef(onWalletRestored);
-  onWalletRestoredRef.current = onWalletRestored;
-  const onFlowCompleteRef = useRef(onFlowComplete);
-  onFlowCompleteRef.current = onFlowComplete;
+  const onWalletRestoredRef = useLatest(onWalletRestored);
+  const onFlowCompleteRef = useLatest(onFlowComplete);
 
   // Label to use when entering the connecting phase
   const connectLabelRef = useRef<string | undefined>(undefined);
@@ -215,7 +216,7 @@ const PasskeyPage: React.FC<PasskeyPageProps> = ({
     if (sdkConnected && phase === 'initializing') {
       onFlowCompleteRef.current?.();
     }
-  }, [sdkConnected, phase]);
+  }, [sdkConnected, phase, onFlowCompleteRef]);
 
   // On mount (and on Retry after aasa-error): verify the app's bundle ID
   // is listed by the platform's out-of-band domain verification source
@@ -282,24 +283,15 @@ const PasskeyPage: React.FC<PasskeyPageProps> = ({
     if (phase !== 'detecting') return;
     let cancelled = false;
 
-    // Reset spinner text on every detecting entry. Without this, a
-    // previous attempt that progressed past the assertion (so the
-    // onAuthComplete callback fired and flipped the spinner to
-    // "Discovering labels...") leaves the stale label in place when
-    // the retry comes back through this effect — the user sees
-    // "Discovering labels..." while the new attempt is still on the
-    // assertion step, which reads as a stuck state.
-    setDetectingText('Detecting passkey...');
-
     // Sign-in path: tell the provider not to auto-register if discovery
     // can't find a credential. On native this maps to autoRegister=false
     // on the SDK PasskeyProvider, which surfaces CredentialNotFound
     // instead of silently registering. No-op on browser.
     passkeyPrfProvider.mode = 'sign-in';
 
-    // Update spinner text once WebAuthn prompt completes
+    // Update spinner state once WebAuthn prompt completes
     passkeyPrfProvider.onAuthComplete = () => {
-      if (!cancelled) setDetectingText('Discovering labels...');
+      if (!cancelled) setIsDiscoveringLabels(true);
     };
 
     const run = async () => {
@@ -421,6 +413,10 @@ const PasskeyPage: React.FC<PasskeyPageProps> = ({
     return () => {
       cancelled = true;
       passkeyPrfProvider.onAuthComplete = undefined;
+      // Reset the spinner-label flag so a re-entry into the detecting
+      // phase starts back at "Detecting passkey..." rather than
+      // inheriting the previous attempt's "Discovering labels..." state.
+      setIsDiscoveringLabels(false);
       // Do NOT reset mode here. The downstream phases of the sign-in
       // flow (auth-pick → connecting) all call derivePrfSeed via the
       // SDK's getWallet/saveLabel/listLabels paths, and they MUST
@@ -557,7 +553,7 @@ const PasskeyPage: React.FC<PasskeyPageProps> = ({
 
     run();
     return () => { cancelled = true; };
-  }, [phase, error]);
+  }, [phase, error, onWalletRestoredRef]);
 
   // ============================================
   // Handlers
@@ -715,7 +711,7 @@ const PasskeyPage: React.FC<PasskeyPageProps> = ({
                 }}
                 placeholder="Label name"
                 maxLength={24}
-                className="w-full bg-spark-surface rounded-xl px-3 py-2 text-spark-text-primary placeholder:text-spark-text-muted focus:outline-none focus:ring-2 focus:ring-spark-primary/50 text-sm"
+                className="w-full bg-spark-surface rounded-xl px-3 py-2 text-spark-text-primary placeholder:text-spark-text-muted focus:outline-hidden focus:ring-2 focus:ring-spark-primary/50 text-sm"
                 autoFocus
               />
               {isDuplicate && (
@@ -767,7 +763,7 @@ const PasskeyPage: React.FC<PasskeyPageProps> = ({
       {aasaFailure && (
         <AlertCard variant="warning" title="Diagnostic details">
           {/* break-all (word-break: break-all) is intentional here —
-              `break-words` (overflow-wrap: break-word) only splits at
+              `wrap-break-word` (overflow-wrap: break-word) only splits at
               word boundaries and doesn't help with long unbroken tokens
               like `delegate_permission/common.get_login_creds` or URLs,
               which were pushing the AlertCard past the viewport on
@@ -803,7 +799,9 @@ const PasskeyPage: React.FC<PasskeyPageProps> = ({
     switch (phase) {
       case 'aasa-checking': return renderSpinner('Verifying app domain...');
       case 'aasa-error': return renderAasaError();
-      case 'detecting': return error ? null : renderSpinner(detectingText);
+      case 'detecting': return error
+        ? null
+        : renderSpinner(isDiscoveringLabels ? 'Discovering labels...' : 'Detecting passkey...');
       case 'review': return renderReview();
       // When the create flow fails the AlertCard alone is the page;
       // re-rendering renderReview() (icon, heading, warning card)
@@ -1040,7 +1038,7 @@ const PasskeyPage: React.FC<PasskeyPageProps> = ({
                           : 'Something went wrong'
               }
             >
-              <p className="text-spark-text-secondary text-sm break-words">
+              <p className="text-spark-text-secondary text-sm wrap-break-word">
                 {error}
               </p>
             </AlertCard>
