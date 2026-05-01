@@ -48,15 +48,30 @@ const CollapsingWalletHeader: React.FC<CollapsingWalletHeaderProps> = ({
     session: number;
   } | null>(null);
 
+  // One-shot latch for the restore-prompt auto-open. Set true on the
+  // false→true edge of `restorePrompt.shouldPrompt` and cleared only on
+  // dismiss, so the dialog doesn't auto-close if shouldPrompt later
+  // becomes false (e.g. after token metadata loads and isActive flips).
+  const [autoOpened, setAutoOpened] = useState(false);
+
   const restorePrompt = useRestoreStableBalancePrompt({
     isSyncing: !!isSyncing,
     walletInfo,
     isStableBalanceActive: stableBalance.isActive,
   });
 
+  // Adjust state on prop change (React docs pattern): latch the auto-open
+  // when shouldPrompt rises, without using an effect.
+  const [prevShouldPrompt, setPrevShouldPrompt] = useState(restorePrompt.shouldPrompt);
+  if (prevShouldPrompt !== restorePrompt.shouldPrompt) {
+    setPrevShouldPrompt(restorePrompt.shouldPrompt);
+    if (restorePrompt.shouldPrompt && !userToggle && !autoOpened) {
+      setAutoOpened(true);
+    }
+  }
+
   // userToggle wins over restorePrompt (user already saw the pill).
-  const isRestorePromptOpen = !userToggle && restorePrompt.shouldPrompt;
-  const isOpen = userToggle !== null || isRestorePromptOpen;
+  const isOpen = userToggle !== null || autoOpened;
   const direction: 'toToken' | 'toBitcoin' = userToggle?.direction ?? 'toToken';
   const dialogKey = userToggle ? `user-${userToggle.session}` : 'restore';
 
@@ -69,10 +84,11 @@ const CollapsingWalletHeader: React.FC<CollapsingWalletHeaderProps> = ({
   }, [stableBalance]);
 
   // Acknowledge the restore prompt on dismiss so it doesn't re-open
-  // immediately within the same shouldPrompt window.
+  // within the same shouldPrompt window.
   const closeToggleFlow = useCallback(() => {
     if (restorePrompt.shouldPrompt) restorePrompt.markPrompted();
     setUserToggle(null);
+    setAutoOpened(false);
   }, [restorePrompt]);
 
   // Build lookup maps for O(1) access (js-index-maps optimization)
@@ -388,7 +404,7 @@ const CollapsingWalletHeader: React.FC<CollapsingWalletHeaderProps> = ({
       key={dialogKey}
       isOpen={isOpen}
       direction={direction}
-      restorePrompt={isRestorePromptOpen}
+      restorePrompt={autoOpened}
       onComplete={() => {
         refreshWalletData?.();
         closeToggleFlow();
