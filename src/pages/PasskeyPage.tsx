@@ -266,7 +266,7 @@ const PasskeyPage: React.FC<PasskeyPageProps> = ({
 
     run();
     return () => { cancelled = true; };
-  }, [phase]);
+  }, [phase, skipDetection]);
 
   // On mount: detect passkey by trying listLabels() (WebAuthn get).
   // The "Sign in with passkey" button click on HomePage is the user
