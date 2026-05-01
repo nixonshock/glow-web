@@ -34,6 +34,9 @@ export const STATUS_BAR_WALLET_GLASS = '#13131d';
 /** Solid spark-surface, matches SlideInPage / PageLayout / drawer / landing. */
 export const STATUS_BAR_SURFACE = '#151520';
 
+/** Solid spark-dark, matches HomePage's flat background. */
+export const STATUS_BAR_DARK = '#0f0f18';
+
 /**
  * Very dark tone used for modal dialog scrim overlays (logout confirm,
  * etc.). Computed by compositing #000000 at 85% opacity over the

@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { useSecretTap } from '@/hooks/useSecretTap';
 import { safeAreaTop, safeAreaBottom } from '@/utils/safeAreaInsets';
 import { useStatusBarColor } from '@/hooks/useStatusBarColor';
-import { STATUS_BAR_SURFACE } from '@/utils/statusBarManager';
+import { STATUS_BAR_DARK } from '@/utils/statusBarManager';
 
 // Star positions around the logo (relative to center, in pixels) - larger radius for bigger logo
 const STARS = [
@@ -34,9 +34,9 @@ const HomePage: React.FC<HomePageProps> = ({
   prfAvailable,
   hasPasskeyBefore = false,
 }) => {
-  // Landing page sits on a flat spark-surface background, so pin the
+  // Landing page sits on a flat spark-dark background, so pin the
   // system bars to the same solid tone while we're shown.
-  useStatusBarColor(STATUS_BAR_SURFACE);
+  useStatusBarColor(STATUS_BAR_DARK);
 
   const [starsAnimating, setStarsAnimating] = useState(false);
   const [showMnemonicFlow, setShowMnemonicFlow] = useState(false);
@@ -49,13 +49,13 @@ const HomePage: React.FC<HomePageProps> = ({
   }, []);
 
   return (
-    <div className="h-full w-full flex flex-col bg-spark-surface relative overflow-hidden">
-      {/* Background layer - extends behind all safe areas.
-          Uses spark-surface (matching the system status/navigation bars)
-          so the landing page blends seamlessly with the system chrome
-          instead of presenting a visibly different color. */}
+    <div className="h-full w-full flex flex-col bg-spark-dark relative overflow-hidden">
+      {/* Background layer - extends behind all safe areas. Uses
+          spark-dark (matched by the system bars via STATUS_BAR_DARK
+          and the native splash background) so the landing surface
+          blends with the system chrome and the splash hand-off. */}
       <div
-        className="absolute inset-0 bg-spark-surface pointer-events-none"
+        className="absolute inset-0 bg-spark-dark pointer-events-none"
         style={{
           top: 'calc(-1 * env(safe-area-inset-top, 0px))',
           bottom: 'calc(-1 * env(safe-area-inset-bottom, 0px))',
