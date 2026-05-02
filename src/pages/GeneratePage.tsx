@@ -130,7 +130,7 @@ const GeneratePage: React.FC<GeneratePageProps> = ({
             ) : (
               <>
                 <CopyIcon size="md" />
-                <span className="font-medium">Copy to clipboard</span>
+                <span className="font-medium">Copy to Clipboard</span>
               </>
             )}
           </button>

@@ -844,7 +844,7 @@ const PasskeyPage: React.FC<PasskeyPageProps> = ({
               setPhase('aasa-checking');
             }}
           >
-            Retry check
+            Retry Check
           </PrimaryButton>
           <SecondaryButton
             className="w-full"
@@ -856,7 +856,7 @@ const PasskeyPage: React.FC<PasskeyPageProps> = ({
               });
             }}
           >
-            Share diagnostic logs
+            Share Diagnostic Logs
           </SecondaryButton>
           <SecondaryButton className="w-full" onClick={onBack}>
             Go Back
@@ -956,7 +956,7 @@ const PasskeyPage: React.FC<PasskeyPageProps> = ({
             setError(null);
             setPhase('creating');
           }}>
-            I understand
+            I Understand
           </PrimaryButton>
           <SecondaryButton className="w-full" onClick={onBack}>
             Go Back

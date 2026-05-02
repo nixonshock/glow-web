@@ -114,7 +114,7 @@ const InstallPrompt: React.FC<InstallPromptProps> = ({ onClose }) => {
                 disabled={isInstalling}
                 className="px-3 py-2 text-spark-text-muted text-sm font-medium hover:text-spark-text-secondary transition-colors"
               >
-                Not now
+                Not Now
               </button>
             </div>
           </div>

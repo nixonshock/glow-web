@@ -92,7 +92,7 @@ const UnlockPage: React.FC<UnlockPageProps> = ({
               disabled={isLoading}
               className="w-full"
             >
-              Use a different wallet
+              Use a Different Wallet
             </SecondaryButton>
           </div>
         </div>
