@@ -448,33 +448,22 @@ export function useBreezSdk(
       // is emitted by the storage layer, so we don't double-log here.
       if (source !== 'secureStorage') {
         if (passkeyLabel != null && secureStorage.isSupported()) {
-          // F3: biometric-bound store. On Android the write triggers a
-          // visible BiometricPrompt, so we flip `isSecuringSeed`
-          // around the await to swap the onboarding loading copy from
-          // "Starting Glow…" to "Setting up biometric unlock…" —
-          // otherwise the prompt looks like it appeared out of nowhere
-          // on top of an unrelated loading screen. On iOS, the
-          // Keychain's biometric grace period reuses the
-          // authentication from the preceding passkey ceremony, so no
-          // visible prompt appears — flipping the label would be
-          // misleading. Keep the generic "Starting Glow…" copy on iOS.
-          const shouldShowSecuringLabel =
-            typeof window !== 'undefined' &&
-            // Capacitor runtime global access mirrors nativePasskeyPrfProvider.ts
-            (window as unknown as {
-              Capacitor?: { getPlatform?: () => string };
-            }).Capacitor?.getPlatform?.() === 'android';
-          if (shouldShowSecuringLabel) {
+          // Only flip the label if storeSeed actually prompts. The
+          // platform grace period often returns within 250ms, in which
+          // case we never show "Setting up biometric unlock…".
+          const labelDeferMs = 250;
+          let flipped = false;
+          const flipTimer = setTimeout(() => {
+            flipped = true;
             setIsSecuringSeed(true);
-          }
+          }, labelDeferMs);
           try {
             await secureStorage.storeSeed(seed);
           } catch {
             // Intentionally swallowed — see comment above.
           } finally {
-            if (shouldShowSecuringLabel) {
-              setIsSecuringSeed(false);
-            }
+            clearTimeout(flipTimer);
+            if (flipped) setIsSecuringSeed(false);
           }
         } else if (deviceOnlyStorage.isSupported()) {
           // Non-passkey on native: encrypted-at-rest storage with no

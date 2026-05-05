@@ -21,7 +21,6 @@ import {
 import type { DomainAssociation } from '@/services/passkeyPrfProvider';
 import { logger, LogCategory } from '@/services/logger';
 import { shareOrDownloadLogs } from '@/services/logExport';
-import StepperBar from '@/components/OnboardingStepper';
 import { useLatest } from '../hooks/useLatest';
 
 // ============================================
@@ -76,20 +75,6 @@ type Phase =
   | 'connecting'      // Connect to Nostr step: getWallet() in progress (prompt)
   | 'initializing';   // Initialize step: SDK connecting
 
-/** Step index for the new user inline stepper (3 steps). */
-function newUserStepIndex(phase: Phase): number {
-  // review/aasa-checking/detecting are pre-flight phases where step 1
-  // hasn't started yet. Returning 0 surfaces step 1 as "next up"
-  // rather than the bare-default 3 which the stepper renders as
-  // "all done" — visually wrong for a screen that's literally
-  // titled "Create your passkey".
-  if (phase === 'review' || phase === 'aasa-checking' || phase === 'detecting') return 0;
-  if (phase === 'creating') return 0;
-  if (phase === 'new-storing') return 1;
-  if (phase === 'connecting' || phase === 'initializing') return 2;
-  return 3; // all complete (post-flow)
-}
-
 
 // ============================================
 // Props
@@ -115,7 +100,7 @@ interface PasskeyPageProps {
    */
   isSecuringSeed?: boolean;
   onFlowComplete?: () => void;
-  /** Skip the listLabels() detection step and start directly at the create-passkey review screen. */
+  /** Skip the listLabels() detection step and start the create-passkey flow directly. */
   skipDetection?: boolean;
   /**
    * Read-and-clear function for the "first sign-in after fresh install"
@@ -144,7 +129,7 @@ const PasskeyPage: React.FC<PasskeyPageProps> = ({
   consumeFreshInstallSignal,
 }) => {
   // AASA verification runs first for both paths; the post-AASA transition
-  // branches on `skipDetection` to either jump straight to 'review' (new
+  // branches on `skipDetection` to either jump straight to 'creating' (new
   // user via Create Passkey CTA) or 'detecting' (existing user via Use
   // Passkey CTA).
   const [phase, setPhase] = useState<Phase>('aasa-checking');
@@ -245,7 +230,7 @@ const PasskeyPage: React.FC<PasskeyPageProps> = ({
         logger.warn(LogCategory.AUTH, 'Domain association check threw (unexpected)', {
           error: e instanceof Error ? e.message : String(e),
         });
-        setPhase(skipDetection ? 'review' : 'detecting');
+        setPhase(skipDetection ? 'creating' : 'detecting');
         return;
       }
 
@@ -262,7 +247,7 @@ const PasskeyPage: React.FC<PasskeyPageProps> = ({
       // provider couldn't verify (offline / no verification source),
       // not that verification failed.
       setAasaFailure(null);
-      setPhase(skipDetection ? 'review' : 'detecting');
+      setPhase(skipDetection ? 'creating' : 'detecting');
     };
 
     run();
@@ -459,10 +444,9 @@ const PasskeyPage: React.FC<PasskeyPageProps> = ({
           // Reset detect-fail counter so the upcoming sign-in attempt
           // gets the fresh-install retry budget if applicable.
           detectingFailCountRef.current = 0;
-          // Skip aasa-checking: it was already verified earlier in
-          // this session and re-running it would bounce through the
-          // skipDetection -> review path, putting the user right back
-          // on the create flow they just came from.
+          // Skip aasa-checking. Re-running it under skipDetection=true
+          // would route through 'creating' and re-fire createPasskey(),
+          // bouncing the user back to the flow they just came from.
           setPhase('detecting');
           return;
         }
@@ -916,13 +900,9 @@ const PasskeyPage: React.FC<PasskeyPageProps> = ({
             // Reset detect-fail counter so this entry into detecting
             // gets the fresh-install retry budget if applicable.
             detectingFailCountRef.current = 0;
-            // Route DIRECTLY to detecting, skipping aasa-checking.
-            // We're entering this branch from a `passkeyCreate` route
-            // (skipDetection=true), and the aasa-checking effect's
-            // post-success transition reads skipDetection and routes
-            // back to 'review' — bouncing the user right back to the
-            // create flow. AASA was already verified earlier in this
-            // session, so re-running it is redundant anyway.
+            // Skip aasa-checking. Under skipDetection=true it would
+            // route to 'creating' and re-fire createPasskey(), bouncing
+            // the user back to the flow they just came from.
             setPhase('detecting');
           }}>
             Use Passkey
@@ -1012,13 +992,6 @@ const PasskeyPage: React.FC<PasskeyPageProps> = ({
   return (
     <PageLayout onBack={onBack} footer={footer} title="Get Started">
       <div className="max-w-xl mx-auto w-full flex flex-col min-h-full">
-        {/* Hide the stepper while an error is showing: the user isn't
-            actively progressing through a step, and a half-filled bar
-            below an "already exists" / "couldn't create" AlertCard
-            reads as visual clutter rather than progress feedback. */}
-        {isNewUser && !error && (
-          <StepperBar stepCount={3} activeIndex={newUserStepIndex(phase)} />
-        )}
         <div className="mt-6 space-y-4 flex flex-col flex-1">
           {content}
           {error && (
