@@ -1,7 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { Capacitor } from '@capacitor/core';
 import { Seed, Wallet } from '@breeztech/breez-sdk-spark';
-import { PrimaryButton, SecondaryButton } from '../components/ui';
+import { PrimaryButton, SecondaryButton, Checkbox } from '../components/ui';
 import LoadingSpinner from '../components/LoadingSpinner';
 import PageLayout from '../components/layout/PageLayout';
 import { AlertCard } from '../components/AlertCard';
@@ -15,6 +15,8 @@ import {
   listLabels,
   saveLabel,
   setPasskeyMode,
+  consumePendingSwitchFromCredentialId,
+  removeStaleCredential,
 } from '@/services/passkeyService';
 import {
   passkeyPrfProvider,
@@ -124,7 +126,9 @@ interface PasskeyPageProps {
 // We can't read the underlying reason, but elapsed time is reliable
 // enough to discriminate: a real human dismiss takes < ~30s in practice;
 // anything above the timeout floor is overwhelmingly the OS giving up.
-const LIKELY_TIMEOUT_MS = 45_000;
+// Pinned to 5s under the platform's 60s ceiling so the heuristic
+// triggers before the system actually tears the prompt down.
+const LIKELY_TIMEOUT_MS = 55_000;
 
 function isLikelyTimeout(elapsedMs: number): boolean {
   return elapsedMs >= LIKELY_TIMEOUT_MS;
@@ -159,8 +163,17 @@ const PasskeyPage: React.FC<PasskeyPageProps> = ({
   // passkey" when the create flow refused because a passkey already
   // exists, instead of just generic Retry).
   const [errorKind, setErrorKind] = useState<
-    null | 'generic' | 'already-exists' | 'sign-in-failed' | 'sign-in-cancelled'
+    null | 'generic' | 'already-exists' | 'sign-in-failed' | 'sign-in-cancelled' | 'switch-recovery'
   >(null);
+  // Tracks the credential ID the user attempted to switch to. When the
+  // switch fails on web (where we can't distinguish dismissed-picker
+  // from deleted-cred), the switch-recovery UI surfaces a confirmation
+  // checkbox: if the user confirms removal, we drop the cred from
+  // metadata via removeStaleCredential on Continue. Native switch-
+  // recovery auto-removes upstream (typed deletion signal makes this
+  // unambiguous) and never sets this state.
+  const [failingSwitchCredId, setFailingSwitchCredId] = useState<string | null>(null);
+  const [confirmedStaleRemoval, setConfirmedStaleRemoval] = useState(false);
   const [manualLabel, setManualLabel] = useState('');
   const [showManualInput, setShowManualInput] = useState(false);
   // Mirrors HomePage's two-CTA gate. When the user reached this page from
@@ -316,6 +329,14 @@ const PasskeyPage: React.FC<PasskeyPageProps> = ({
     // instead of silently registering. No-op on browser.
     passkeyPrfProvider.mode = 'sign-in';
 
+    // Tie the in-flight assertion to component-unmount via AbortController
+    // so a route-away mid-prompt frees the JS-side Promise. On iOS Safari
+    // the OS modal does not visually close on abort (Apple-side limitation),
+    // but the JS Promise rejects with AbortError so the page-state machine
+    // can clean up. Web only — native uses its own plugin lifecycle.
+    const controller = new AbortController();
+    passkeyPrfProvider.currentSignal = controller.signal;
+
     // Update spinner state once WebAuthn prompt completes
     passkeyPrfProvider.onAuthComplete = () => {
       if (!cancelled) setIsDiscoveringLabels(true);
@@ -340,6 +361,11 @@ const PasskeyPage: React.FC<PasskeyPageProps> = ({
         // 'Default' would otherwise get a stray Nostr publish.
         const speculative = await setupWallet('Default', false);
         if (cancelled) return;
+        // PRF succeeded: a switch attempt that started with
+        // setPendingSwitchFromCredentialId() has now resolved
+        // successfully. Clear the slot so a later unrelated sign-in
+        // failure can't trigger an inappropriate switch-recovery.
+        consumePendingSwitchFromCredentialId();
         speculativeWalletRef.current = speculative;
 
         const found = await listLabels();
@@ -454,6 +480,32 @@ const PasskeyPage: React.FC<PasskeyPageProps> = ({
               }, 3000);
               return;
             }
+            // Switch-recovery: when the user picked a credential to
+            // switch to via PasskeyManagementPage and that cred turns
+            // out to be deleted, restore the cred we switched FROM
+            // and remove only the failing cred's metadata. Without
+            // this, we'd treat it like a single-cred deletion, wipe
+            // the entire known list, and route the user into the
+            // new-user create flow — losing all their other valid
+            // creds' AAGUID / user.name records along the way.
+            const restoreCredId = consumePendingSwitchFromCredentialId();
+            if (restoreCredId) {
+              const failingCredId = localStorage.getItem('passkeyActiveCredentialId');
+              logger.warn(LogCategory.AUTH, 'Switch target not found, restoring previous active cred', {
+                failingCredId,
+                restoredCredId: restoreCredId,
+                errorCode,
+                elapsedMs,
+              });
+              if (failingCredId) {
+                await removeStaleCredential(failingCredId);
+              }
+              localStorage.setItem('passkeyActiveCredentialId', restoreCredId);
+              if (cancelled) return;
+              setError("That passkey is no longer on this device.");
+              setErrorKind('switch-recovery');
+              return;
+            }
             logger.warn(LogCategory.AUTH, 'Fast no-cred on returning user, treating as Settings deletion', {
               errorCode,
               isCredentialNotFound,
@@ -505,6 +557,41 @@ const PasskeyPage: React.FC<PasskeyPageProps> = ({
               setPhase('aasa-checking');
             }, 3000);
             return;
+          }
+          // Web switch-recovery (gentle): native handles this case in
+          // the fast-fail branch above with a typed deletion signal,
+          // which lets it both revert the active pin AND remove the
+          // failing cred from the registry. Web has no equivalent
+          // signal (NotAllowedError covers cancelled-picker and
+          // deleted-cred identically), so we run the gentler version:
+          // revert the active pin to the previously-signed-in cred
+          // and keep the failing cred in metadata. The user can
+          // confirm the cred is gone and remove it from
+          // PasskeyManagementPage if so. Without this branch, every
+          // subsequent detect on web would re-pin to the failing cred
+          // via allowCredentialIds and fail the same way, locking the
+          // user into an infinite Try Again loop.
+          if (!isNativePlatform()) {
+            const restoreCredId = consumePendingSwitchFromCredentialId();
+            if (restoreCredId) {
+              const failingCredId = localStorage.getItem('passkeyActiveCredentialId');
+              logger.warn(LogCategory.AUTH, 'Web switch ceremony failed, reverting active pin', {
+                failingCredId,
+                restoredCredId: restoreCredId,
+                errorCode,
+                elapsedMs,
+              });
+              localStorage.setItem('passkeyActiveCredentialId', restoreCredId);
+              if (cancelled) return;
+              // Stash the failing cred ID + reset the confirmation
+              // checkbox so the switch-recovery UI can offer to drop
+              // its metadata when the user confirms removal.
+              setFailingSwitchCredId(failingCredId);
+              setConfirmedStaleRemoval(false);
+              setError("Could not sign in with that passkey. It may have been removed, or the prompt was cancelled.");
+              setErrorKind('switch-recovery');
+              return;
+            }
           }
           // Returning user, second failure (cancelled prompt, relay
           // error, transient network, or stage-2 sync still pending).
@@ -573,6 +660,12 @@ const PasskeyPage: React.FC<PasskeyPageProps> = ({
           // surface as the same NotAllowedError. Show the generic
           // failure with both Try Again and Create as escape hatches
           // so genuine new users aren't stuck.
+          //
+          // (Chrome 148's `uiMode: 'immediate'` doesn't fix this:
+          // when a hybrid-paired device exists in the user's
+          // account, Chrome surfaces the QR / Security Key sheet
+          // even on no-cred immediate-mediation calls, so we still
+          // can't distinguish slow cancels on web.)
           if (isNativePlatform()) {
             logger.info(LogCategory.AUTH, 'User dismissed passkey sheet (native); refusing to offer Create', {
               errorCode,
@@ -618,6 +711,12 @@ const PasskeyPage: React.FC<PasskeyPageProps> = ({
     run();
     return () => {
       cancelled = true;
+      // Abort any in-flight WebAuthn ceremony so a route-away during
+      // the prompt frees the Promise. The provider's try/finally clears
+      // currentSignal after the call returns, so this only fires when
+      // the call is still pending.
+      controller.abort();
+      passkeyPrfProvider.currentSignal = undefined;
       passkeyPrfProvider.onAuthComplete = undefined;
       // Reset the spinner-label flag so a re-entry into the detecting
       // phase starts back at "Detecting passkey..." rather than
@@ -655,24 +754,26 @@ const PasskeyPage: React.FC<PasskeyPageProps> = ({
       } catch (e) {
         if (cancelled) return;
         // Platform refused because excludeCredentials matched an
-        // already-registered passkey. Don't surface this as an error:
-        // since we know the user has a usable passkey, just route
-        // them straight into the sign-in flow. They get the right
-        // outcome (signed into their existing wallet) without seeing
-        // a confusing "passkey already exists" error.
+        // already-registered passkey. The user just consented to a
+        // CREATE and biometric-verified — silently pivoting them into
+        // a sign-in flow they didn't ask for is jarring (they think
+        // they're creating, get prompted again, and end up signed in
+        // to the existing cred without explanation). Surface a
+        // dedicated "passkey already exists" state with a clear
+        // "Use Passkey" CTA so the next biometric prompt is one the
+        // user explicitly opted into.
         if (e instanceof PasskeyAlreadyExistsError) {
-          logger.info(LogCategory.AUTH, 'Create flow detected existing passkey, auto-routing to sign-in');
+          logger.info(LogCategory.AUTH, 'Create flow detected existing passkey, surfacing already-exists state');
           // Restore the persistent flag so HomePage and the rest of
           // the app treat this as a returning-user session.
           localStorage.setItem('passkeyRegistered', '1');
           setIsNewUser(false);
           // Reset detect-fail counter so the upcoming sign-in attempt
-          // gets the fresh-install retry budget if applicable.
+          // (when the user taps "Use Passkey") gets the fresh-install
+          // retry budget if applicable.
           detectingFailCountRef.current = 0;
-          // Skip aasa-checking. Re-running it under skipDetection=true
-          // would route through 'creating' and re-fire createPasskey(),
-          // bouncing the user back to the flow they just came from.
-          setPhase('detecting');
+          setError('You already have a Glow passkey on this device. Use it to sign in.');
+          setErrorKind('already-exists');
           return;
         }
         // Surface the underlying error message and Capacitor error code
@@ -1137,12 +1238,81 @@ const PasskeyPage: React.FC<PasskeyPageProps> = ({
       );
     }
 
+    // Switch-recovery: the user picked a credential to switch to, it
+    // didn't authenticate, and the recovery branch in the detect
+    // effect restored the active-cred pin to the previously-signed-in
+    // cred. The next sign-in attempt will pin to that cred
+    // (allowCredentialIds is single-element), so the OS picker auto-
+    // resolves and the user sees only the biometric prompt for the
+    // cred they were using before the switch attempt. "Continue"
+    // reads more honestly than "Try Again" here — we're not retrying
+    // the failed sign-in, we're moving forward with the previous cred.
+    //
+    // On web, the recovery branch leaves the failing cred in metadata
+    // (it can't tell dismissed-picker from deleted-cred apart). The
+    // confirmation checkbox lives in the main content area, directly
+    // below the AlertCard (rendered down in the JSX), so the user
+    // sees the prompt next to the explanation rather than down in
+    // the footer next to the action button. The footer here is just
+    // Continue: ticked checkbox + Continue removes the failing cred
+    // from per-cred metadata + the canonical store via
+    // removeStaleCredential; unticked Continue keeps the cred and
+    // just moves on (correct for the dismiss case where the cred is
+    // alive). Native never reaches this branch with
+    // failingSwitchCredId set; its upstream switch-recovery already
+    // auto-removed.
+    if (error && phase === 'detecting' && errorKind === 'switch-recovery') {
+      const showRemovalConfirm = !isNativePlatform() && failingSwitchCredId !== null;
+      return (
+        <div className="max-w-xl mx-auto space-y-3">
+          <PrimaryButton className="w-full" onClick={async () => {
+            if (showRemovalConfirm && confirmedStaleRemoval && failingSwitchCredId) {
+              try {
+                await removeStaleCredential(failingSwitchCredId);
+              } catch (e) {
+                logger.warn(LogCategory.AUTH, 'Failed to remove confirmed stale cred', {
+                  error: e instanceof Error ? e.message : String(e),
+                });
+              }
+            }
+            setFailingSwitchCredId(null);
+            setConfirmedStaleRemoval(false);
+            setError(null);
+            setErrorKind(null);
+            setPhase('aasa-checking');
+          }}>
+            Continue
+          </PrimaryButton>
+        </div>
+      );
+    }
+
     // Returning-user sign-in failures (cancelled, transient
-    // CREDENTIAL_NOT_FOUND, relay error). Never offer Create — the
-    // user has hasPasskeyHistory, exclude registry is intact, but
-    // wiring Create here would lure a duplicate when sign-in is
-    // genuinely retryable.
+    // CREDENTIAL_NOT_FOUND, relay error).
+    //
+    // Native: Try Again only. The fast-fail branch upstream already
+    // auto-routes genuinely-deleted-cred cases to setPhase('review'),
+    // so reaching this branch on native means slow-cancel — user
+    // dismissed the picker, cred is still alive, and retry is the
+    // right action. Offering Create here would lure a duplicate.
+    //
+    // Web: Try Again + Use Another Passkey, with Create only on the
+    // single-CTA path. Web has no fast-fail signal, so reaching this
+    // branch can mean either a dismiss or a dead pinned cred. Try
+    // Again handles dismiss; Use Another Passkey drops the active
+    // pin so the OS picker can surface sibling creds (it's still a
+    // sign-in pivot, so consistent with the user's earlier choice on
+    // both two-CTA and single-CTA paths). Create is gated by the
+    // same `retryOnly` rule the generic-failure branch below uses:
+    // two-CTA users explicitly chose Use Existing Passkey on HomePage
+    // and the system back button is the route home for Create;
+    // single-CTA users took an ambiguous Get Started entry, so Create
+    // is a legitimate continuation. excludeCredentialIds is populated
+    // from the local registry, so Create can't produce a platform-
+    // level duplicate when the registry is intact.
     if (error && phase === 'detecting' && errorKind === 'sign-in-failed') {
+      const isWeb = !isNativePlatform();
+      const retryOnly = isWeb && immediateGetSupported !== true;
       return (
         <div className="max-w-xl mx-auto space-y-3">
           <PrimaryButton className="w-full" onClick={() => {
@@ -1152,6 +1322,33 @@ const PasskeyPage: React.FC<PasskeyPageProps> = ({
           }}>
             Try Again
           </PrimaryButton>
+          {isWeb && (
+            <SecondaryButton className="w-full" onClick={() => {
+              // Drop the active-cred pin so the next detect runs with
+              // empty allowCredentialIds. The OS picker surfaces any
+              // sibling cred valid for this RP; captureAssertion
+              // re-pins to whichever the user picks. Escapes the
+              // same-pin retry loop for users whose active cred is
+              // gone but who still have other creds synced via
+              // iCloud Keychain or Google Password Manager.
+              localStorage.removeItem('passkeyActiveCredentialId');
+              setError(null);
+              setErrorKind(null);
+              setPhase('aasa-checking');
+            }}>
+              Use Another Passkey
+            </SecondaryButton>
+          )}
+          {isWeb && !retryOnly && (
+            <SecondaryButton className="w-full" onClick={() => {
+              setError(null);
+              setErrorKind(null);
+              setIsNewUser(true);
+              setPhase('creating');
+            }}>
+              Create New Passkey
+            </SecondaryButton>
+          )}
         </div>
       );
     }
@@ -1189,11 +1386,15 @@ const PasskeyPage: React.FC<PasskeyPageProps> = ({
       );
     }
 
-    // "Already exists" recovery: a passkey is on the device but the
-    // user landed on the create flow (post-uninstall race, dev wipe,
-    // etc.). Offer the right action — sign in with the existing
-    // passkey — as the primary, with Try Again as a secondary safety
-    // net for users who'd rather poke the create flow again.
+    // "Already exists" recovery: the user opted into Create (either
+    // via the explicit Create CTA or the "Don't have your passkey?"
+    // recovery link), the OS verified them, and the platform refused
+    // because excludeCredentials matched a cred already on this
+    // authenticator. The AlertCard above explains the situation;
+    // primary action is to sign in with the existing cred, secondary
+    // backs out to home. Try Again is intentionally NOT offered:
+    // excludeCredentials is still populated, so retrying create would
+    // fail with the same InvalidStateError in a loop.
     if (error && phase === 'creating' && errorKind === 'already-exists') {
       return (
         <div className="max-w-xl mx-auto space-y-3">
@@ -1211,8 +1412,8 @@ const PasskeyPage: React.FC<PasskeyPageProps> = ({
           }}>
             Use Passkey
           </PrimaryButton>
-          <SecondaryButton className="w-full" onClick={handleRetry}>
-            Try Again
+          <SecondaryButton className="w-full" onClick={handleErrorBack}>
+            Go Back
           </SecondaryButton>
         </div>
       );
@@ -1322,8 +1523,10 @@ const PasskeyPage: React.FC<PasskeyPageProps> = ({
                   ? 'Passkey already exists'
                   : errorKind === 'sign-in-cancelled'
                     ? 'Sign-in cancelled'
-                    : errorKind === 'sign-in-failed'
-                      ? 'Sign-in failed'
+                    : errorKind === 'switch-recovery'
+                      ? 'Passkey unavailable'
+                      : errorKind === 'sign-in-failed'
+                        ? 'Sign-in failed'
                       : phase === 'new-storing'
                         ? "Couldn't save label"
                         : phase === 'connecting'
@@ -1337,6 +1540,34 @@ const PasskeyPage: React.FC<PasskeyPageProps> = ({
                 {error}
               </p>
             </AlertCard>
+          )}
+          {/* Web switch-recovery removal-confirmation checkbox.
+              Sits directly under the AlertCard so the prompt reads
+              alongside the error explanation rather than next to the
+              footer's Continue button. The footer's switch-recovery
+              branch reads `confirmedStaleRemoval` to decide whether
+              to call removeStaleCredential. Native switch-recovery
+              auto-removes upstream and never sets failingSwitchCredId,
+              so this block is web-only by construction. */}
+          {error
+            && phase === 'detecting'
+            && errorKind === 'switch-recovery'
+            && !isNativePlatform()
+            && failingSwitchCredId !== null && (
+            <div className="flex items-start gap-3 p-3 rounded-xl border border-spark-border">
+              <Checkbox
+                checked={confirmedStaleRemoval}
+                onChange={() => setConfirmedStaleRemoval(prev => !prev)}
+              />
+              <div className="flex-1 space-y-1">
+                <p className="text-sm text-spark-text-secondary">
+                  I confirm that this passkey was deleted.
+                </p>
+                <p className="text-xs text-spark-text-muted">
+                  Optional. Continue without ticking if unsure.
+                </p>
+              </div>
+            </div>
           )}
         </div>
       </div>
