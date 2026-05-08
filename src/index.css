@@ -481,6 +481,33 @@ h6 {
 }
 
 /* ============================================
+   MOBILE GPU RELIEF
+   ============================================
+   Mobile GPUs drop frames when compositing stacked backdrop-filter +
+   large filter: blur. GPU cost of sampling a blur scales roughly with
+   the radius squared, so the heaviest contributors are the largest
+   radii — the wallet page's `backdrop-blur-xl` (24px) header and the
+   decorative `blur-3xl` (64px) / `blur-2xl` (40px) radial ambients.
+
+   Cap those large radii on touch-only viewports. The glass / halo
+   look stays recognizable, but the GPU work drops to single-digit
+   percent of the original. Smaller `backdrop-blur-sm` / -md radii
+   are already cheap and left alone.
+*/
+@media (hover: none) and (pointer: coarse) {
+  .backdrop-blur-xl {
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+  }
+  .blur-2xl {
+    filter: blur(12px);
+  }
+  .blur-3xl {
+    filter: blur(16px);
+  }
+}
+
+/* ============================================
    FORM ELEMENTS
    ============================================ */
 
