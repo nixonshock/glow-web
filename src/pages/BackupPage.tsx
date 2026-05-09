@@ -213,14 +213,14 @@ const BackupPage: React.FC<BackupPageProps> = ({ onBack }) => {
             </div>
           )}
 
-          {/* Biometric fallback (passkey only). Single card that
+          {/* Biometric fallback (passkey only, native). Single card that
               replaces both the original reveal tile and the error
               banner once the passkey attempt has failed. Visually
               mirrors the happy-path tile: same title, swap the
               "Requires passkey authentication" subtitle for "Requires
               {biometric}". The label-driven biometric naming matches
               the convention used elsewhere (UnlockPage). */}
-          {isPasskey && passkeyAttemptFailed && !isRevealed && !mnemonic && (
+          {isPasskey && passkeyAttemptFailed && !isRevealed && !mnemonic && secureStorage.isSupported() && (
             <button
               onClick={handleRevealWithBiometric}
               disabled={isLoading}
@@ -242,6 +242,25 @@ const BackupPage: React.FC<BackupPageProps> = ({ onBack }) => {
                   : `Requires ${biometryLabel ?? 'biometric authentication'}`}
               </span>
             </button>
+          )}
+
+          {/* Web fallback (passkey mode, no native secure storage). On
+              web the seed is derived from the passkey PRF only: there
+              is no device-bound copy to read with biometrics. If the
+              passkey attempt failed, the recovery phrase cannot be
+              retrieved here. Mirror the "No Backup Found" tile used
+              for non-passkey mode so the user gets a clear dead-end
+              message instead of a button that always errors. */}
+          {isPasskey && passkeyAttemptFailed && !isRevealed && !mnemonic && !secureStorage.isSupported() && (
+            <div className="bg-spark-dark border border-spark-border rounded-2xl p-8 text-center">
+              <div className="w-16 h-16 rounded-2xl bg-spark-error/20 flex items-center justify-center mx-auto mb-4">
+                <WarningIcon size="xl" className="text-spark-error" />
+              </div>
+              <h3 className="font-display font-semibold text-spark-text-primary mb-2">Passkey Unavailable</h3>
+              <p className="text-spark-text-muted text-sm">
+                Your recovery phrase is derived from your passkey. Without it, the phrase cannot be retrieved on this device. Sign in on a device where the passkey is still available to view it.
+              </p>
+            </div>
           )}
 
           {/* Mnemonic word grid (shared) */}
