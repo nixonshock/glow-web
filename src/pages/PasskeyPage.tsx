@@ -608,7 +608,7 @@ const PasskeyPage: React.FC<PasskeyPageProps> = ({
           setError(
             isCancelled
               ? (isLikelyTimeout(elapsedMs)
-                ? 'Sign-in timed out. The system stopped waiting for biometrics. Please try again.'
+                ? 'Sign-in timed out. Please try again.'
                 : 'Sign-in cancelled. Please try again.')
               : `Could not sign in with your passkey. ${underlying ? `[${underlying}]` : ''} Please try again.`,
           );
@@ -673,7 +673,7 @@ const PasskeyPage: React.FC<PasskeyPageProps> = ({
             });
             setError(
               isLikelyTimeout(elapsedMs)
-                ? 'Sign-in timed out. The system stopped waiting for biometrics. Please try again.'
+                ? 'Sign-in timed out. Please try again.'
                 : 'Sign-in cancelled. Please pick your passkey to continue.',
             );
             setErrorKind('sign-in-cancelled');
@@ -904,7 +904,7 @@ const PasskeyPage: React.FC<PasskeyPageProps> = ({
           || messageLooksCancelled;
         console.error('[Glow] Connect failed', { error: underlying, errorCode, elapsedMs, raw: e });
         if (isCancelled && isLikelyTimeout(elapsedMs)) {
-          setError('Sign-in timed out. The system stopped waiting for biometrics. Please try again.');
+          setError('Sign-in timed out. Please try again.');
         } else if (isCancelled) {
           setError('Sign-in cancelled. Please try again.');
         } else {

@@ -17,9 +17,9 @@
 
 import React, { useEffect, useState } from 'react';
 import { PrimaryButton, SecondaryButton } from '../components/ui';
-import { FingerprintIcon } from '../components/Icons';
+import { FingerprintIcon, PasskeyIcon } from '../components/Icons';
 import { AlertCard } from '../components/AlertCard';
-import { getBiometryLabel } from '../services/secureStorage';
+import { getBiometryLabel, secureStorage } from '../services/secureStorage';
 
 interface UnlockPageProps {
   isLoading: boolean;
@@ -34,12 +34,13 @@ const UnlockPage: React.FC<UnlockPageProps> = ({
   onUnlock,
   onAbandon,
 }) => {
+  // Web hosts use passkey terminology; native uses biometric.
+  const isWebPasskey = !secureStorage.isSupported();
+
   const [biometryLabel, setBiometryLabel] = useState<string | null>(null);
 
-  // Resolve the biometry type at mount so the button label can be specific
-  // ("Unlock with Face ID" etc). Falls back to the generic "Unlock" if the
-  // lookup fails or returns null.
   useEffect(() => {
+    if (isWebPasskey) return;
     let cancelled = false;
     getBiometryLabel().then((label) => {
       if (!cancelled) setBiometryLabel(label);
@@ -47,9 +48,15 @@ const UnlockPage: React.FC<UnlockPageProps> = ({
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [isWebPasskey]);
 
-  const unlockLabel = biometryLabel ? `Unlock with ${biometryLabel}` : 'Unlock';
+  const unlockLabel = isWebPasskey
+    ? 'Unlock with passkey'
+    : biometryLabel ? `Unlock with ${biometryLabel}` : 'Unlock';
+  const unlockDescription = isWebPasskey
+    ? 'Your wallet is locked. Unlock with your passkey to continue.'
+    : 'Your wallet is locked. Unlock with your biometric to continue.';
+  const UnlockIcon = isWebPasskey ? PasskeyIcon : FingerprintIcon;
 
   return (
     <div className="min-h-dvh h-dvh w-full flex flex-col bg-spark-surface relative">
@@ -66,7 +73,7 @@ const UnlockPage: React.FC<UnlockPageProps> = ({
               Welcome back
             </h1>
             <p className="text-sm text-spark-text-secondary text-center">
-              Your wallet is locked. Unlock with your biometric to continue.
+              {unlockDescription}
             </p>
           </div>
 
@@ -83,7 +90,7 @@ const UnlockPage: React.FC<UnlockPageProps> = ({
               disabled={isLoading}
               className="w-full flex items-center justify-center gap-2"
             >
-              <FingerprintIcon size="md" />
+              <UnlockIcon size="md" />
               {unlockLabel}
             </PrimaryButton>
 

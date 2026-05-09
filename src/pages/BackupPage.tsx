@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { WarningIcon, SpinnerIcon, EyeIcon, FingerprintIcon } from '../components/Icons';
+import { WarningIcon, SpinnerIcon, EyeIcon, FingerprintIcon, PasskeyIcon } from '../components/Icons';
 import SlideInPage from '../components/layout/SlideInPage';
 import { isPasskeyMode, getWallet } from '@/services/passkeyService';
 import { deviceOnlyStorage, secureStorage, getBiometryLabel } from '@/services/secureStorage';
@@ -152,7 +152,7 @@ const BackupPage: React.FC<BackupPageProps> = ({ onBack }) => {
             <div className="bg-spark-dark border border-spark-border rounded-2xl p-6">
               <div className="flex items-start gap-4">
                 <div className="w-10 h-10 rounded-xl bg-spark-primary/20 flex items-center justify-center shrink-0">
-                  <FingerprintIcon size="md" className="text-spark-primary" />
+                  <PasskeyIcon size="md" className="text-spark-primary" />
                 </div>
                 <div>
                   <h4 className="font-medium text-spark-text-primary mb-1">Passkey Protected</h4>

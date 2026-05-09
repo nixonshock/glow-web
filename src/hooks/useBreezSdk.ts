@@ -120,10 +120,12 @@ async function migrateLegacyMnemonicIfNeeded(): Promise<void> {
  * - `'loading'`: initial mount, auto-reconnect in progress. Router shows a spinner.
  * - `'no-wallet'`: no credentials persisted anywhere. Router shows the welcome
  *   / onboarding page.
- * - `'native-unlocking'`: a seed is persisted in native secure storage and an
- *   auto-triggered biometric prompt is currently visible. Router shows the
- *   `UnlockingPage` placeholder (Glow logo + "Authenticating…" spinner) as a
- *   branded backdrop behind the OS biometric card.
+ * - `'native-unlocking'`: an authentication ceremony is in flight. On
+ *   native that's the auto-triggered biometric prompt against secure
+ *   storage; on web (passkey mode) it's the WebAuthn passkey prompt
+ *   driving PRF-based seed derivation. Router shows the
+ *   `UnlockingPage` placeholder (Glow logo + "Authenticating…" spinner)
+ *   as a branded backdrop behind the OS prompt either way.
  * - `'native-locked'`: the auto-triggered biometric was cancelled or hit the
  *   biometric lockout — router shows the interactive `UnlockPage` from which
  *   the user can retry biometric or abandon the locked wallet and re-onboard.
@@ -495,8 +497,11 @@ export function useBreezSdk(
           } catch {
             // Intentionally swallowed — see comment above.
           }
+        } else if (passkeyLabel != null) {
+          // Web passkey mode: never cache the PRF-derived seed; wipe
+          // any stale plaintext from older builds.
+          clearMnemonic();
         } else if (seed.type === 'mnemonic') {
-          // Web (legacy): unchanged plaintext localStorage write.
           saveMnemonic(seed.mnemonic);
         }
       }
@@ -542,6 +547,12 @@ export function useBreezSdk(
 
   const handleLogout = useCallback(async () => {
     setIsLoading(true);
+
+    // Wipe reconnect signals first so a hung sdk.disconnect() can't
+    // strand the user with a wallet that auto-reconnects on refresh.
+    clearMnemonic();
+    clearPasskeyMode();
+
     try {
       if (sdk) {
         await sdk.disconnect();
@@ -555,8 +566,8 @@ export function useBreezSdk(
       logger.warn(LogCategory.SESSION, 'Failed to end log session', { error: formatError(e) });
     }
 
-    // Wipe BOTH secure-storage tiers first. Failure is non-fatal — the
-    // user is still logged out either way. Each tier emits its own typed
+    // Wipe BOTH secure-storage tiers. Failure is non-fatal — the user
+    // is still logged out either way. Each tier emits its own typed
     // error breadcrumb on failure, so we don't double-log here.
     if (secureStorage.isSupported()) {
       try {
@@ -575,8 +586,6 @@ export function useBreezSdk(
 
     // Always reset all state — even if disconnect threw
     setSdk(null);
-    clearMnemonic();
-    clearPasskeyMode();
     setCachedStableTicker(null);
     clearStableRestorePrompted();
     shownPaymentIdsRef.current.clear();
@@ -781,10 +790,27 @@ export function useBreezSdk(
     }
     retryUnlockInFlightRef.current = true;
     if (!secureStorage.isSupported()) {
-      // Web or unsupported host — should never reach UnlockPage here, but
-      // route back to welcome just in case.
-      setStartupState('no-wallet');
-      retryUnlockInFlightRef.current = false;
+      if (!isPasskeyMode()) {
+        setStartupState('no-wallet');
+        retryUnlockInFlightRef.current = false;
+        return;
+      }
+      setError(null);
+      flushSync(() => {
+        setStartupState('native-unlocking');
+        setIsLoading(true);
+      });
+      try {
+        const wallet = await getWallet();
+        await connectWallet(wallet.seed, false, wallet.label);
+      } catch (e) {
+        logger.error(LogCategory.AUTH, 'Web passkey retry failed', { error: formatError(e) });
+        setError('Failed to authenticate with passkey. Please try again.');
+        setStartupState('native-locked');
+        setIsLoading(false);
+      } finally {
+        retryUnlockInFlightRef.current = false;
+      }
       return;
     }
     setError(null);
@@ -1068,7 +1094,12 @@ export function useBreezSdk(
       // (E) Legacy flow. Reached on web, or on native when no stored
       //     seed was found in either tier above.
       if (useLegacy) {
-        const savedMnemonic = getSavedMnemonic();
+        if (isPasskeyMode()) {
+          // Wipe stale plaintext mnemonic from older builds; passkey
+          // mode must always re-derive via PRF on launch.
+          clearMnemonic();
+        }
+        const savedMnemonic = !isPasskeyMode() ? getSavedMnemonic() : null;
         if (savedMnemonic) {
           try {
             setIsLoading(true);
@@ -1080,19 +1111,25 @@ export function useBreezSdk(
             setIsLoading(false);
           }
         } else if (isPasskeyMode()) {
-          // Passkey mode but no stored seed (e.g. KEY_INVALIDATED on
-          // biometric change, or a web host that doesn't support
-          // secureStorage). Fall through to the passkey re-derive path.
-          setIsLoading(true);
+          // Passkey mode without stored seed: re-derive via PRF.
+          // flushSync commits UnlockingPage before the WebAuthn prompt
+          // fires, then hideSplash drops the index.html splash so it
+          // doesn't sit on top.
+          flushSync(() => {
+            setStartupState('native-unlocking');
+            setIsLoading(true);
+          });
+          if (isInitialLoadRef.current) {
+            isInitialLoadRef.current = false;
+            await hideSplash();
+          }
           let wallet;
           try {
             wallet = await getWallet();
           } catch (e) {
             logger.error(LogCategory.AUTH, 'Passkey authentication failed', { error: formatError(e) });
-            if (e instanceof DOMException && e.name === 'NotAllowedError') {
-              clearPasskeyMode();
-            }
             setError('Failed to authenticate with passkey. Please try again.');
+            setStartupState('native-locked');
             setIsLoading(false);
           }
           if (wallet) {
@@ -1101,6 +1138,7 @@ export function useBreezSdk(
             } catch (e) {
               logger.error(LogCategory.SDK, 'Failed to connect after passkey auth', { error: formatError(e) });
               setError('Failed to connect wallet. Please try again.');
+              setStartupState('native-locked');
               setIsLoading(false);
             }
           }
