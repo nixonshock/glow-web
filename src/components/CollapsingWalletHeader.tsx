@@ -2,7 +2,7 @@ import React, { useMemo, useState, useCallback, useRef, useEffect } from 'react'
 import type { GetInfoResponse, FiatCurrency } from '@breeztech/breez-sdk-spark';
 import { safeAreaTop } from '../utils/safeAreaInsets';
 import { getFiatSettings } from '../services/settings';
-import { formatWithThinSpaces } from '../utils/formatNumber';
+import { formatWithThinSpaces, formatWithSpaces } from '../utils/formatNumber';
 import { useAnimatedNumber } from '../hooks/useAnimatedNumber';
 import { MenuIcon, AlertTriangleIcon, CurrencyIcon, SpinnerIcon } from './Icons';
 import { useStableBalance } from '../contexts/StableBalanceContext';
@@ -221,14 +221,16 @@ const CollapsingWalletHeader: React.FC<CollapsingWalletHeaderProps> = ({
     return null;
   }, [stableBalance.isActive, btcBalanceSat]);
 
-  // Format primary balance display — strip the currency symbol so we can position it separately
+  // Format primary balance display — strip the currency symbol so we can position it separately.
+  // Use a regular space (not thin-space) so the .balance-display word-spacing
+  // CSS can tighten the gap between thousand groups in JetBrains Mono.
   const formattedPrimaryBalance = useMemo(() => {
     if (stableBalance.isActive && stableBalance.displayConfig) {
       const full = formatTokenAmount(BigInt(displayBalance), stableBalance.displayConfig);
       const sym = stableBalance.displayConfig.symbol;
       return full.startsWith(sym) ? full.slice(sym.length).trimStart() : full;
     }
-    return formatWithThinSpaces(displayBalance);
+    return formatWithSpaces(displayBalance);
   }, [stableBalance.isActive, stableBalance.displayConfig, displayBalance]);
 
   // Currency symbol to show before the balance (₿ for sats, $ etc. for stable)
