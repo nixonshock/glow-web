@@ -15,6 +15,7 @@
  */
 
 import React, { useEffect } from 'react';
+import { Capacitor } from '@capacitor/core';
 import { logger, LogCategory } from '../services/logger';
 
 const UnlockingPage: React.FC = () => {
@@ -31,7 +32,14 @@ const UnlockingPage: React.FC = () => {
     <div className="min-h-dvh h-dvh w-full flex flex-col bg-spark-surface relative">
       <div
         className="w-full flex flex-col items-center px-6"
-        style={{ paddingTop: 'calc(env(safe-area-inset-top, 0px) + 3rem)' }}
+        style={{
+          // Native biometric dialogs cover the bottom half of the
+          // screen, so keep content near the top there. On web the
+          // WebAuthn prompt is small and top/center, so push down.
+          paddingTop: Capacitor.isNativePlatform()
+            ? 'calc(env(safe-area-inset-top, 0px) + 3rem)'
+            : 'calc(env(safe-area-inset-top, 0px) + 8rem)',
+        }}
       >
         <div className="max-w-sm w-full flex flex-col items-center gap-8">
           <img
